@@ -1,5 +1,48 @@
 import streamlit as st
 
+
+# Fonction pour vérifier le mot de passe
+def check_password():
+    """Retourne True si l'utilisateur a entré un mot de passe valide."""
+
+    def password_entered():
+        """Vérifie si le mot de passe entré par l'utilisateur est correct."""
+        if st.session_state["password"] in st.secrets["passwords"].values():
+            st.session_state["password_correct"] = True
+            del st.session_state["password"]  # Ne pas garder le mot de passe en mémoire
+        else:
+            st.session_state["password_correct"] = False
+
+    if "password_correct" not in st.session_state:
+        # Première exécution, initialiser l'état.
+        st.text_input(
+            "Password", type="password", on_change=password_entered, key="password"
+        )
+        return False
+    elif not st.session_state["password_correct"]:
+        # Mot de passe incorrect, redemander.
+        st.text_input(
+            "Password", type="password", on_change=password_entered, key="password"
+        )
+        st.error("😕 Password incorrect")
+        return False
+    else:
+        # Mot de passe correct.
+        return True
+
+# --- Début de votre application ---
+
+if check_password():
+    # Mettez TOUT le reste de votre code d'application ici.
+    # Par exemple :
+    st.title("Bienvenue sur l'App de Diagnostic !")
+    st.write("Vous êtes connecté.")
+    
+    # ... le reste de votre code (st.file_uploader, vos fonctions, etc.)
+
+
+
+
 # --- Page Configuration (Must be the first Streamlit command) ---
 st.set_page_config(
     page_title="Outil de Diagnostic Réseau",

@@ -157,8 +157,6 @@ def show():
                 "sudo lwsalt reset {MAC}",
                 "sudo lwsalt neighbors {MAC}",
                 "sudo lwsalt version {MAC}",
-                "sudo salt {MAC} test.ping",
-                "sudo salt '{MAC}' cmd.run 'reboot'",
                 "Commande personnalisée"
             ]
             selected_command = st.selectbox(
