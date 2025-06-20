@@ -68,7 +68,7 @@ def show():
             
             # Explicitly set the firmware version column as string type
             df = pd.DataFrame(df_data, columns=["Identifier", "Column2", "Column", "Firmware_version"])
-            df['Firmware_version'] = df['Version_Firmware'].astype(str)
+            df['Firmware_version'] = df['Firmware_version'].astype(str)
             
             with st.expander("🔍 Preview CSV file", expanded=True):
                 st.dataframe(df, use_container_width=True)
