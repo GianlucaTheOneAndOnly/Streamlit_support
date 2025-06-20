@@ -3,7 +3,7 @@ from password import check_password, add_logout_button
 
 # --- Page Configuration (Must be the first Streamlit command) ---
 st.set_page_config(
-    page_title="Outil de Diagnostic Réseau",
+    page_title="Network Diagnostic Tool",
     page_icon="🛠️",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -88,27 +88,27 @@ if 'command_history' not in st.session_state:
 st.sidebar.title("Navigation")
 page = st.sidebar.radio(
     "Sélectionner une page:", 
-    ["Diagnostic Individuel", "Diagnostic par Lots", "Générateur CSV"]
+    ["Individual diagnostic", "Mass diagnostic", "Firmware Update"]
 )
 
 # --- Sidebar History Section ---
-st.sidebar.title("⚙️ Actions & Historique")
+st.sidebar.title("⚙️ Actions & historic")
 
 # --- Display Selected Page ---
-if page == "Diagnostic Individuel":
+if page == "Individual diagnostic":
     import individual_diagnostic
     individual_diagnostic.show()
-elif page == "Diagnostic par Lots":
+elif page == "Mass diagnostic":
     import batch_diagnostic
     batch_diagnostic.show()
-else:  # Générateur CSV
+elif page == "Firmware Update":
     import csv_firmware
     csv_firmware.show()
 
 # --- History Display ---
-with st.sidebar.expander("📜 Historique des commandes copiées/préparées", expanded=False):
+with st.sidebar.expander("📜 Command history", expanded=False):
     if not st.session_state.command_history:
-        st.write("L'historique est vide.")
+        st.write("Historic is empty.")
     else:
         for j, hist_cmd in enumerate(st.session_state.command_history):
             st.code(hist_cmd, language='bash')
@@ -120,7 +120,7 @@ with st.sidebar.expander("📜 Historique des commandes copiées/préparées", e
             st.markdown("---")
 
     if st.session_state.command_history:
-        if st.button("Effacer l'historique", key="clear_history"):
+        if st.button("Delete history", key="clear_history"):
             st.session_state.command_history = []
             st.rerun()
 
@@ -128,7 +128,7 @@ with st.sidebar.expander("📜 Historique des commandes copiées/préparées", e
         import json
         history_json = json.dumps(st.session_state.command_history, indent=2)
         st.download_button(
-            label="Télécharger l'historique (JSON)",
+            label="Download history (JSON)",
             data=history_json,
             file_name="command_history.json",
             mime="application/json",
@@ -136,11 +136,11 @@ with st.sidebar.expander("📜 Historique des commandes copiées/préparées", e
         )
 
 # --- CSV History in Sidebar (if applicable) ---
-if page == "Générateur CSV" and 'csv_history' in st.session_state and st.session_state.csv_history:
-    with st.sidebar.expander("📄 Historique CSV", expanded=False):
-        st.write(f"{len(st.session_state.csv_history)} fichier(s) généré(s)")
+if page == "Generate CSV" and 'csv_history' in st.session_state and st.session_state.csv_history:
+    with st.sidebar.expander("📄 History CSV", expanded=False):
+        st.write(f"{len(st.session_state.csv_history)} file(s) generated")
         for i, csv_item in enumerate(st.session_state.csv_history[-3:]):  # Show last 3
             st.caption(f"📄 {csv_item['filename']} ({csv_item['urls_count']} URLs)")
 
 st.sidebar.markdown("---")
-st.sidebar.info("Cette application est un outil de diagnostic réseau pour les gateways.")
+st.sidebar.info("This app is for designed for remote diagnostic.")
