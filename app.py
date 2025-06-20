@@ -1,5 +1,13 @@
 import streamlit as st
 
+# --- Page Configuration (Must be the first Streamlit command) ---
+st.set_page_config(
+    page_title="Outil de Diagnostic Réseau",
+    page_icon="🛠️",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
+
 
 # Fonction pour vérifier le mot de passe
 def check_password():
@@ -40,16 +48,6 @@ if check_password():
     
     # ... le reste de votre code (st.file_uploader, vos fonctions, etc.)
 
-
-
-
-# --- Page Configuration (Must be the first Streamlit command) ---
-st.set_page_config(
-    page_title="Outil de Diagnostic Réseau",
-    page_icon="🛠️",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
 
 # --- Apply Custom Styling ---
 st.markdown("""
