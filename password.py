@@ -3,85 +3,55 @@ import time
 from datetime import datetime, timedelta
 
 
-# --- STYLE LOGIN AMÉLIORÉ ---
+# --- STYLE LOGIN SIMPLE ---
 LOGIN_STYLE = """
 <style>
-    /* Overlay sombre pour effet modal */
-    .login-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background-color: rgba(0, 0, 0, 0.5);
-        backdrop-filter: blur(5px);
-        z-index: 9998;
+    .login-container {
+        max-width: 400px;
+        margin: 2rem auto;
+        padding: 2rem;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        background-color: #f9f9f9;
     }
     
-    /* Boîte de connexion centrée */
-    .login-box {
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 2.5rem;
-        border-radius: 15px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-        z-index: 9999;
-        width: 90%;
-        max-width: 420px;
-        animation: slideIn 0.3s ease-out;
-    }
-    
-    @keyframes slideIn {
-        from {
-            opacity: 0;
-            transform: translate(-50%, -60%);
-        }
-        to {
-            opacity: 1;
-            transform: translate(-50%, -50%);
-        }
-    }
-    
-    .login-box h1 {
-        color: white !important;
+    .login-title {
         text-align: center;
+        color: #333;
         margin-bottom: 1.5rem;
-        font-size: 1.8rem;
     }
     
-    .login-box .stTextInput > div > div > input {
-        background-color: rgba(255, 255, 255, 0.9);
-        border: none;
-        border-radius: 8px;
+    .attempts-info {
+        background-color: #e3f2fd;
         padding: 0.75rem;
-        font-size: 1rem;
-    }
-    
-    .login-info {
-        background-color: rgba(255, 255, 255, 0.1);
-        padding: 1rem;
-        border-radius: 8px;
+        border-radius: 4px;
         margin-top: 1rem;
         font-size: 0.9rem;
+        color: #1976d2;
     }
     
-    .security-indicator {
-        display: flex;
-        align-items: center;
-        margin-top: 0.5rem;
-        font-size: 0.8rem;
-    }
-    
-    .attempts-warning {
-        background-color: rgba(255, 87, 87, 0.2);
-        border: 1px solid rgba(255, 87, 87, 0.5);
-        padding: 0.75rem;
-        border-radius: 8px;
+    .locked-warning {
+        background-color: #ffebee;
+        border: 1px solid #f44336;
+        padding: 1rem;
+        border-radius: 4px;
         margin-top: 1rem;
+        color: #d32f2f;
+    }
+    
+    /* Désactiver les raccourcis clavier problématiques */
+    .stApp {
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+    }
+    
+    .stTextInput input {
+        -webkit-user-select: text !important;
+        -moz-user-select: text !important;
+        -ms-user-select: text !important;
+        user-select: text !important;
     }
 </style>
 """
@@ -132,8 +102,9 @@ def check_password():
             st.session_state.pop("password", None)
             st.rerun()
         else:
-            # Échec : incrémenter les tentatives
-            st.session_state["login_attempts"] += 1
+            # Échec : incrémenter les tentatives (avec initialisation sécurisée)
+            current_attempts = st.session_state.get("login_attempts", 0)
+            st.session_state["login_attempts"] = current_attempts + 1
             st.session_state["last_attempt_time"] = current_time
             st.session_state["password_correct"] = False
             
@@ -167,15 +138,12 @@ def check_password():
     # Afficher l'interface de connexion
     st.markdown(LOGIN_STYLE, unsafe_allow_html=True)
     
-    # Overlay sombre
-    st.markdown('<div class="login-overlay"></div>', unsafe_allow_html=True)
-    
-    # Boîte de connexion
+    # Container simple centré
     with st.container():
-        st.markdown('<div class="login-box">', unsafe_allow_html=True)
+        st.markdown('<div class="login-container">', unsafe_allow_html=True)
         
-        # Titre avec emoji
-        st.markdown('<h1>🔐 Accès Sécurisé</h1>', unsafe_allow_html=True)
+        # Titre simple
+        st.markdown('<h2 class="login-title">🔐 Connexion</h2>', unsafe_allow_html=True)
         
         # Vérifier le verrouillage
         is_locked, remaining_time = is_account_locked()
@@ -185,23 +153,23 @@ def check_password():
             minutes = remaining_time // 60
             seconds = remaining_time % 60
             st.markdown(f'''
-                <div class="attempts-warning">
-                    🚫 <strong>Compte temporairement verrouillé</strong><br>
+                <div class="locked-warning">
+                    <strong>⏳ Compte temporairement verrouillé</strong><br>
                     Trop de tentatives incorrectes. Réessayez dans {minutes}m {seconds}s.
                 </div>
             ''', unsafe_allow_html=True)
         else:
-            # Interface de saisie normale
+            # Interface de saisie normale - TEXTE VISIBLE
             st.text_input(
                 "Mot de passe", 
-                type="password", 
+                type="text",  # Changé de "password" à "text" pour voir le texte
                 on_change=password_entered, 
                 key="password",
                 placeholder="Entrez votre mot de passe...",
-                help="Saisissez votre mot de passe d'accès"
+                help="Le texte saisi est visible"
             )
             
-            # Messages d'erreur et d'information
+            # Messages d'erreur simples
             attempts_remaining = get_attempts_remaining()
             
             if st.session_state.get("login_attempts", 0) > 0:
@@ -210,19 +178,10 @@ def check_password():
                 else:
                     st.error("❌ Trop de tentatives. Compte verrouillé pour 5 minutes.")
             
-            # Informations de sécurité
+            # Informations simples
             st.markdown(f'''
-                <div class="login-info">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span>🛡️ Connexion sécurisée</span>
-                        <span style="font-size: 0.8em; opacity: 0.8;">
-                            Tentatives: {st.session_state.get("login_attempts", 0)}/5
-                        </span>
-                    </div>
-                    <div class="security-indicator">
-                        <span style="color: #4CAF50;">🔒</span>
-                        <span style="margin-left: 0.5rem;">Données protégées et chiffrées</span>
-                    </div>
+                <div class="attempts-info">
+                    ℹ️ Tentatives: {st.session_state.get("login_attempts", 0)}/5
                 </div>
             ''', unsafe_allow_html=True)
         
