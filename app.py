@@ -102,8 +102,8 @@ elif page == "Diagnostic par Lots":
     import batch_diagnostic
     batch_diagnostic.show()
 else:  # Générateur CSV
-    import csv_generator
-    csv_generator.show()
+    import csv_firmware
+    csv_firmware.show()
 
 # --- History Display ---
 with st.sidebar.expander("📜 Historique des commandes copiées/préparées", expanded=False):
