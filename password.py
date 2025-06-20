@@ -1,6 +1,7 @@
 # password.py
 import streamlit as st
 
+
 # --- STYLE LOGIN POUR EFFET "POP-UP" ---
 LOGIN_STYLE = """
 <style>
@@ -17,11 +18,9 @@ LOGIN_STYLE = """
         width: 100%;
         max-width: 400px;
     }
-    .stApp {
-        filter: blur(4px);
-    }
 </style>
 """
+
 
 # --- FONCTION À IMPORTER ---
 def check_password():
@@ -29,9 +28,9 @@ def check_password():
 
     def password_entered():
         """Vérifie si le mot de passe est correct et met à jour la session."""
-        if st.session_state["password"] in st.secrets["passwords"].values():
+        if st.session_state.get("password") in st.secrets["passwords"].values():
             st.session_state["password_correct"] = True
-            del st.session_state["password"]  # Supprime le mot de passe pour la sécurité
+            st.session_state.pop("password", None)  # supprime proprement sans erreur
         else:
             st.session_state["password_correct"] = False
 
