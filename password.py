@@ -100,7 +100,7 @@ def check_password():
             st.session_state["last_attempt_time"] = None
             st.session_state["locked_until"] = None
             st.session_state.pop("password", None)
-            st.rerun()
+            # st.rerun() supprimé car automatique dans un callback
         else:
             # Échec : incrémenter les tentatives (avec initialisation sécurisée)
             current_attempts = st.session_state.get("login_attempts", 0)
@@ -187,10 +187,10 @@ def check_password():
         
         st.markdown('</div>', unsafe_allow_html=True)
     
-    # Auto-refresh pour le décompte du verrouillage
+    # Auto-refresh pour le décompte du verrouillage (seulement si nécessaire)
     if is_locked and remaining_time > 0:
         time.sleep(1)
-        st.rerun()
+        st.rerun()  # Ici c'est OK car pas dans un callback
     
     # Arrêter l'exécution tant que non authentifié
     st.stop()
