@@ -1,5 +1,5 @@
 import streamlit as st
-from password import check_password  # 👈 appel au module séparé
+from password import check_password, add_logout_button
 
 # --- Page Configuration (Must be the first Streamlit command) ---
 st.set_page_config(
