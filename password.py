@@ -162,7 +162,7 @@ def check_password():
             # Interface de saisie normale - TEXTE VISIBLE
             st.text_input(
                 "Mot de passe", 
-                type="text",  # Changé de "password" à "text" pour voir le texte
+                type="default",  # Changé à "default" pour voir le texte
                 on_change=password_entered, 
                 key="password",
                 placeholder="Entrez votre mot de passe...",
