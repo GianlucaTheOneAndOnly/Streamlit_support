@@ -100,6 +100,12 @@ def show():
 
         # --- Data Fetching Section ---
         if st.session_state.get('database') and st.session_state.get('database_selected', False):
+
+            if st.button("🧪 Diagnostic complet API"):
+                api.run_diagnostic()
+
+
+
             st.success(f"✅ Connected to database: `{st.session_state.database}`")
             st.markdown("---")
             

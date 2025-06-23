@@ -319,3 +319,51 @@ class Api:
                 st.error(f"❌ {name}: ERROR - {e}")
             
             st.write("---")
+
+    def run_diagnostic(self):
+        st.subheader("🚨 Diagnostic complet API")
+
+        # 1. Headers
+        st.markdown("### 🔐 Headers actuels")
+        st.json(dict(st.session_state.session.headers))
+
+        # 2. Contexte utilisateur
+        st.markdown("### 🌍 Contexte de session")
+        st.write(f"- Utilisateur: {st.session_state.get('username', 'non défini')}")
+        st.write(f"- Server URL suffix: `{st.session_state.get('urlserver')}`")
+        st.write(f"- Base sélectionnée: `{st.session_state.get('database')}`")
+
+        # 3. Authorization
+        st.markdown("### 🛡️ Authorization Header")
+        auth = st.session_state.session.headers.get("Authorization", "Aucun header Authorization trouvé.")
+        st.code(auth)
+
+        # 4. Bases disponibles
+        st.markdown("### 📂 Bases disponibles (user_data['dbs'])")
+        st.json(st.session_state.get("dbs", []))
+
+        # 5. Endpoints API à tester
+        st.markdown("### 🧪 Tests de connectivité API")
+        base_url = f"https://isee{st.session_state.urlserver}.icareweb.com/apiv4/{st.session_state.database}"
+        endpoints = [
+            ("Infos de base", ""),
+            ("Utilisateur courant", "/user"),
+            ("Assets (1)", "/assets/?p=1&count=1"),
+            ("Assets (10)", "/assets/?p=1&count=10"),
+        ]
+
+        for label, ep in endpoints:
+            url = base_url + ep
+            try:
+                resp = st.session_state.session.get(url)
+                code = resp.status_code
+                preview = resp.text[:300].replace('\n', ' ')
+                if code == 200:
+                    st.success(f"{label} → ✅ 200 OK")
+                elif code == 403:
+                    st.error(f"{label} → ❌ 403 Forbidden")
+                else:
+                    st.warning(f"{label} → ⚠️ {code}")
+                st.caption(f"`{url}` → Réponse : {preview}...")
+            except Exception as e:
+                st.error(f"{label} → Exception : {e}")
