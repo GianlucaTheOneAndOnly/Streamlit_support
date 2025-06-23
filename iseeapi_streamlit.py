@@ -80,26 +80,48 @@ class Api:
         login_url = f"https://isee{st.session_state.urlserver}.icareweb.com/apiv4/login/"
         choose_url = login_url + st.session_state.database
         
+        st.write(f"🔍 Debug: Connecting to URL: {choose_url}")
+        
         try:
             response_database = st.session_state.session.get(url=choose_url)
+            
+            # Log pour debug
+            st.write(f"🔍 Debug: Database selection response status: {response_database.status_code}")
+            if response_database.status_code != 200:
+                st.write(f"🔍 Debug: Response text: {response_database.text}")
+            
             response_database.raise_for_status()
             
             user_data = response_database.json()
+            
+            # Vérifier que nous avons reçu un nouveau token
+            if 'token' not in user_data:
+                st.error("No token received from database selection.")
+                return False
+                
             # Update the authorization token to be database-specific
-            st.session_state.session.headers["Authorization"] = f"Bearer {user_data['token']}"
+            new_token = user_data['token']
+            st.session_state.session.headers["Authorization"] = f"Bearer {new_token}"
+            
+            st.write(f"🔍 Debug: New token received (first 20 chars): {new_token[:20]}...")
 
-            # FIX: Clear session cookies after getting the DB-specific token.
-            # This prevents potential conflicts where the server might get confused by
-            # seeing both an old session cookie and a new database-specific token.
+            # Clear session cookies after getting the DB-specific token.
             st.session_state.session.cookies.clear()
             
-            st.info(f"Successfully connected to database: {st.session_state.database}")
+            st.success(f"✅ Successfully connected to database: {st.session_state.database}")
             return True
-        
+    
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 403:
+                st.error("❌ Access forbidden to this database. Check your permissions.")
+            elif e.response.status_code == 404:
+                st.error("❌ Database not found. The database ID may be incorrect.")
+            else:
+                status_code = e.response.status_code if e.response else "N/A"
+                st.error(f"❌ Failed to select database. Status code: {status_code}, Error: {e}")
+            return False
         except requests.exceptions.RequestException as e:
-            # Improved error message
-            status_code = e.response.status_code if e.response else "N/A"
-            st.error(f"Failed to select database. Status code: {status_code}, Error: {e}")
+            st.error(f"❌ Network error while selecting database: {e}")
             return False
 
     def get_hierarchy(self):
@@ -109,8 +131,12 @@ class Api:
         if not st.session_state.logged_in or not st.session_state.database:
             st.warning("You must be logged in and have a database selected to fetch hierarchy.")
             return None, None
+        
+        # Vérifier que nous avons un token d'autorisation
+        if 'Authorization' not in st.session_state.session.headers:
+            st.error("No authorization token found. Please reconnect to the database.")
+            return None, None
             
-        # CORRECTION: Inclure l'identifiant de la base de données dans l'URL
         base_url = f"https://isee{st.session_state.urlserver}.icareweb.com/apiv4/{st.session_state.database}/assets/"
         
         hierarchy_list = []
@@ -120,9 +146,20 @@ class Api:
         
         with st.spinner("Fetching hierarchy data... This may take a moment."):
             try:
+                # Afficher les informations de debug
+                st.write(f"🔍 Debug: Calling URL: {base_url}?p=1&count=1")
+                st.write(f"🔍 Debug: Authorization header present: {'Authorization' in st.session_state.session.headers}")
+                
                 # First call to get metadata
                 initial_response = st.session_state.session.get(f"{base_url}?p=1&count=1")
+                
+                # Log des détails de la réponse pour le debug
+                st.write(f"🔍 Debug: Response status code: {initial_response.status_code}")
+                if initial_response.status_code != 200:
+                    st.write(f"🔍 Debug: Response text: {initial_response.text}")
+                    
                 initial_response.raise_for_status()
+                
                 meta = initial_response.json().get('_meta', {})
                 total_assets = meta.get('total', 0)
                 if total_assets == 0:
@@ -181,6 +218,16 @@ class Api:
                 
                 return df_hierarchy.drop(columns=['paths'], errors='ignore'), df_listname
 
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code == 403:
+                    st.error("❌ Access forbidden. Possible causes:")
+                    st.error("• Your user account doesn't have permission to access assets in this database")
+                    st.error("• The authorization token has expired")
+                    st.error("• The database ID is incorrect")
+                    st.error("💡 Try reconnecting to the database or contact your administrator for permissions.")
+                else:
+                    st.error(f"An HTTP error occurred: {e}")
+                return None, None
             except requests.exceptions.RequestException as e:
                 st.error(f"An error occurred while fetching hierarchy: {e}")
                 return None, None
