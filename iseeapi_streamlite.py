@@ -5,6 +5,10 @@ import requests
 import json
 import pandas as pd
 
+
+# Add this import at the top of the file
+from requests.exceptions import HTTPError
+
 class Api:
     """
     Handles all communication with the I-CARE API, including authentication
@@ -85,13 +89,40 @@ class Api:
         """
         # Initial call to get total count
         try:
-            url = f"https://isee{self.urlserver}.icareweb.com/apiv4/assets/?p=1&count=1"
+            url = f"https://isee{self.urlserver}.icareweb.com/apiv4/assets/?p=1&count=25"
+
+            # --- DEBUGGING STEP ---
+            # Let's see the headers we are about to send
+            st.info("Attempting to fetch data with the following headers:")
+            st.json(self.headers)
+            # --- END DEBUGGING STEP ---
+
+
             response = self.session.get(url, headers=self.headers, timeout=20)
             response.raise_for_status()
             total_assets = response.json()['_meta']['total']
+
+            
+
+
             if total_assets == 0:
                 st.warning("No assets found in this database.")
                 return pd.DataFrame(), pd.DataFrame() # Return empty dataframes
+            
+
+        except HTTPError as http_err:
+            # This is the new, important part!
+            st.error(f"HTTP error occurred: {http_err}")
+            st.error("The server rejected the request. Here is the detailed response from the API:")
+            try:
+                # Try to show the JSON error message from the server
+                st.json(response.json())
+            except ValueError:
+                # If the response isn't JSON, show the raw text
+                st.text(response.text)
+            return None, None
+
+
         except requests.exceptions.RequestException as e:
             st.error(f"Failed to connect to asset endpoint: {e}")
             return None, None

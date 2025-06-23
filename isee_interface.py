@@ -1,120 +1,168 @@
 # isee_interface.py
 
 import streamlit as st
-from iseeapi_streamlite import Api # Import the Api class from the other file
-
-# It's good practice to import libraries you use directly, even if they are used
-# by the imported class. Here, we need pandas for the .to_csv() method.
 import pandas as pd
-
-# --- Page and State Configuration ---
-st.set_page_config(layout="wide", page_title="I-CARE Data Extractor")
-
-# Initialize all session state keys we will use
-if 'api_client' not in st.session_state:
-    st.session_state.api_client = None
-if 'db_list' not in st.session_state:
-    st.session_state.db_list = None
-if 'logged_in' not in st.session_state:
-    st.session_state.logged_in = False
-if 'hierarchy_df' not in st.session_state:
-    st.session_state.hierarchy_df = None
-if 'listname_df' not in st.session_state:
-    st.session_state.listname_df = None
+from iseeapi_streamlite import Api  # Your existing API class file
 
 
-# --- UI Rendering ---
+# Cache CSV conversion for better performance
+@st.cache_data
+def convert_df_to_csv(df):
+    return df.to_csv(index=False).encode('utf-8')
 
-st.title("I-CARE API Data Extractor")
 
-# --- Login UI (in the sidebar) ---
-with st.sidebar:
-    st.header("Login Credentials")
-    
-    # Disable inputs if already logged in
-    is_disabled = st.session_state.logged_in
-    
-    username = st.text_input("Username", disabled=is_disabled)
-    password = st.text_input("Password", type="password", disabled=is_disabled)
-    server = st.selectbox("Select Server", Api.SERVER_RESPONSE, disabled=is_disabled)
+def show():
+    st.title("I-CARE API Data Extractor")
+    st.markdown("Connect to the iSee API, fetch asset hierarchy, and download data as CSV files.")
 
-    if st.button("Login", disabled=is_disabled):
-        if username and password:
-            with st.spinner("Logging in..."):
-                # Instantiate the API class from our other file
-                api = Api(username, password)
-                db_result = api.login_step1_get_dbs(server)
+    # Initialize session state keys if missing
+    for key in ['username', 'password', 'server', 'logged_in', 'dbs', 'database', 'database_selected', 'df_hierarchy', 'df_listname', 'api_client']:
+        if key not in st.session_state:
+            st.session_state[key] = None if key not in ['logged_in', 'database_selected'] else False
 
-                if isinstance(db_result, list): # Success
-                    st.session_state.api_client = api
-                    st.session_state.db_list = db_result
-                    st.success("Login successful! Please select a database.")
-                else: # Error message string was returned
-                    st.error(db_result)
-        else:
-            st.warning("Please enter both username and password.")
+    api = st.session_state.api_client or Api()
 
-    # --- Database Selection UI (also in sidebar) ---
-    if st.session_state.db_list and not st.session_state.logged_in:
-        db_options = {db['name']: db['db'] for db in st.session_state.db_list}
-        selected_db_name = st.selectbox(
-            "Select Database",
-            options=db_options.keys(),
-            index=None,
-            placeholder="Choose a database..."
-        )
+    # Try to load default credentials from secrets if available
+    try:
+        default_username = st.secrets["credentials"]["username"]
+        default_password = st.secrets["credentials"]["password"]
+    except (KeyError, AttributeError):
+        default_username = ""
+        default_password = ""
 
-        if selected_db_name and st.button("Confirm Database"):
-            selected_db_id = db_options[selected_db_name]
-            with st.spinner("Accessing database..."):
-                api_client = st.session_state.api_client
-                result = api_client.login_step2_select_db(selected_db_id)
+    # --- Login Section ---
+    st.subheader("Login Credentials")
 
-                if result is True:
-                    st.session_state.logged_in = True
-                    st.session_state.api_client = api_client
-                    st.success(f"Connected to: {selected_db_name}")
-                    st.rerun() # Rerun to update the main page view
-                else: # Error message string was returned
-                    st.error(result)
+    username = st.text_input("Username", value=st.session_state.username or default_username, key="username")
+    password = st.text_input("Password", type="password", value=st.session_state.password or default_password, key="password")
+    server = st.selectbox("Select Server", Api.SERVER_RESPONSE, index=1 if st.session_state.server is None else Api.SERVER_RESPONSE.index(st.session_state.server), key="server")
 
-# --- Main App Content Area ---
-if not st.session_state.logged_in:
-    st.info("Please log in using the sidebar to begin.")
-else:
-    st.header("Hierarchy Extraction")
-    if st.button("Fetch Asset Hierarchy", type="primary"):
-        # Clear previous results before fetching new ones
-        st.session_state.hierarchy_df = None
-        st.session_state.listname_df = None
-        
-        api_client = st.session_state.api_client
-        h_df, l_df = api_client.get_hierarchy()
+    if st.session_state.logged_in:
+        with st.expander("🔧 Debug - Session State"):
+            st.write(st.session_state)
 
-        if h_df is not None and l_df is not None:
-            st.session_state.hierarchy_df = h_df
-            st.session_state.listname_df = l_df
-            st.success("Data extraction and processing complete!")
-        else:
-            st.error("Failed to extract data. Check the logs above for details.")
+        st.success(f"✅ Logged in as {st.session_state.username}")
 
-    # --- Display DataFrames and Download Buttons ---
-    if st.session_state.hierarchy_df is not None:
-        st.subheader("Processed Hierarchy Data")
-        st.dataframe(st.session_state.hierarchy_df)
-        st.download_button(
-            label="Download Hierarchy as CSV",
-            data=st.session_state.hierarchy_df.to_csv(index=False).encode('utf-8'),
-            file_name='hierarchy_data.csv',
-            mime='text/csv',
-        )
+        if st.button("Logout"):
+            # Clear all iSee-related session state on logout
+            keys_to_clear = [
+                'username', 'password', 'server', 'logged_in', 'dbs', 'database', 'database_selected',
+                'df_hierarchy', 'df_listname', 'api_client'
+            ]
+            for key in keys_to_clear:
+                st.session_state[key] = None if key not in ['logged_in', 'database_selected'] else False
+            st.experimental_rerun()
+    else:
+        if st.button("Login"):
+            if username and password:
+                with st.spinner("Logging in..."):
+                    # Create new Api instance with credentials
+                    api = Api(username, password)
+                    db_list = api.login_step1_get_dbs(server)
+                    if isinstance(db_list, list):
+                        st.session_state.api_client = api
+                        st.session_state.dbs = db_list
+                        st.session_state.username = username
+                        st.session_state.password = password
+                        st.session_state.server = server
+                        st.success("Login successful! Please select a database.")
+                    else:
+                        st.error(db_list)  # error message from API
+            else:
+                st.warning("Please enter both username and password.")
 
-    if st.session_state.listname_df is not None:
-        st.subheader("Asset List Data")
-        st.dataframe(st.session_state.listname_df)
-        st.download_button(
-            label="Download Asset List as CSV",
-            data=st.session_state.listname_df.to_csv(index=False).encode('utf-8'),
-            file_name='listname_data.csv',
-            mime='text/csv',
-        )
+    # --- Database Selection ---
+    if st.session_state.dbs and not st.session_state.logged_in:
+        db_names = [db['name'] for db in st.session_state.dbs]
+        selected_db_name = st.selectbox("Select Database", db_names, key="db_selection")
+
+        if st.button("Connect to Database"):
+            selected_db = next((db for db in st.session_state.dbs if db['name'] == selected_db_name), None)
+            if selected_db:
+                with st.spinner(f"Connecting to database {selected_db_name}..."):
+                    success = st.session_state.api_client.login_step2_select_db(selected_db['db'])
+                    if success is True:
+                        st.session_state.database = selected_db_name
+                        st.session_state.logged_in = True
+                        st.session_state.database_selected = True
+                        # Clear old data on new DB connect
+                        st.session_state.df_hierarchy = None
+                        st.session_state.df_listname = None
+                        st.success(f"Connected to database: {selected_db_name}")
+                        st.experimental_rerun()
+                    else:
+                        st.error(success)
+            else:
+                st.error("Selected database not found.")
+
+    # --- Main content after login ---
+    if st.session_state.logged_in:
+        st.markdown("---")
+        st.success(f"✅ Connected to database: {st.session_state.database}")
+
+        # Debug info
+        with st.expander("🔧 Debug Information"):
+            st.write("Session state data:")
+            st.write(st.session_state)
+
+        # Fetch hierarchy button
+        if st.button("Fetch Asset Hierarchy"):
+            with st.spinner("Fetching hierarchy data..."):
+                h_df, l_df = st.session_state.api_client.get_hierarchy()
+                if h_df is not None and l_df is not None:
+                    st.session_state.df_hierarchy = h_df
+                    st.session_state.df_listname = l_df
+                    st.success("Data fetched successfully!")
+                    st.experimental_rerun()
+                else:
+                    st.error("Failed to fetch hierarchy data.")
+
+        # Additional diagnostic buttons if you want
+        if st.button("Run Full API Diagnostic"):
+            st.session_state.api_client.run_diagnostic()
+
+        if st.button("Test API Access"):
+            st.session_state.api_client.test_api_access()
+
+        if st.button("Check Database Selection Method"):
+            st.session_state.api_client.check_database_selection_method()
+
+        # Display data and download options
+        if st.session_state.df_hierarchy is not None and st.session_state.df_listname is not None:
+            st.markdown("---")
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Hierarchy records", len(st.session_state.df_hierarchy))
+            with col2:
+                st.metric("Asset records", len(st.session_state.df_listname))
+
+            st.subheader("Hierarchy Data Preview")
+            st.dataframe(st.session_state.df_hierarchy.head(10))
+
+            st.subheader("List Name Data Preview")
+            st.dataframe(st.session_state.df_listname.head(10))
+
+            st.subheader("Download Data")
+            col1, col2 = st.columns(2)
+            with col1:
+                csv_hierarchy = convert_df_to_csv(st.session_state.df_hierarchy)
+                st.download_button(
+                    label="Download Hierarchy CSV",
+                    data=csv_hierarchy,
+                    file_name=f"{st.session_state.database}_hierarchy.csv",
+                    mime="text/csv",
+                )
+            with col2:
+                csv_listname = convert_df_to_csv(st.session_state.df_listname)
+                st.download_button(
+                    label="Download List Name CSV",
+                    data=csv_listname,
+                    file_name=f"{st.session_state.database}_listname.csv",
+                    mime="text/csv",
+                )
+    else:
+        st.info("Please login to continue.")
+
+# For direct running
+if __name__ == "__main__":
+    show()
