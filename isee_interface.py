@@ -163,6 +163,3 @@ def show():
     else:
         st.info("Please login to continue.")
 
-# For direct running
-if __name__ == "__main__":
-    show()
