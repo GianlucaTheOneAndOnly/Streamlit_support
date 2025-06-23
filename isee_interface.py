@@ -1,5 +1,3 @@
-# isee_interface.py
-
 import streamlit as st
 import pandas as pd
 from iseeapi_streamlite import Api  # Your existing API class file
@@ -89,7 +87,7 @@ def show():
                         st.session_state.df_hierarchy = None
                         st.session_state.df_listname = None
                         st.success(f"Connected to database: {selected_db_name}")
-                        #st.experimental_rerun()
+                        # st.experimental_rerun()
                     else:
                         st.error(success)
             else:
@@ -162,4 +160,3 @@ def show():
                 )
     else:
         st.info("Please login to continue.")
-
