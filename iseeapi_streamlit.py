@@ -12,39 +12,23 @@ class Api:
 
     def __init__(self):
         """
-        Initializes the Api class.
-        In a Streamlit context, we'll use st.session_state to manage state.
+        Initializes the Api class using st.session_state to manage state.
         """
         if 'session' not in st.session_state:
             st.session_state.session = requests.Session()
             st.session_state.session.headers.update({"Accept-Language": "en", "Accept": "application/json"})
         
         # Initialize other session state variables if they don't exist
-        if 'username' not in st.session_state:
-            st.session_state.username = ""
-        if 'password' not in st.session_state:
-            st.session_state.password = ""
-        if 'database' not in st.session_state:
-            st.session_state.database = None
-        if 'urlserver' not in st.session_state:
-            st.session_state.urlserver = ""
-        if 'dbs' not in st.session_state:
-            st.session_state.dbs = []
-        if 'logged_in' not in st.session_state:
-            st.session_state.logged_in = False
+        if 'username' not in st.session_state: st.session_state.username = ""
+        if 'password' not in st.session_state: st.session_state.password = ""
+        if 'database' not in st.session_state: st.session_state.database = None
+        if 'urlserver' not in st.session_state: st.session_state.urlserver = ""
+        if 'dbs' not in st.session_state: st.session_state.dbs = []
+        if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 
     def loginAPI(self, username, password, server, database=None):
         """
         Handles the login process using credentials and server info from the Streamlit UI.
-
-        Args:
-            username (str): The user's username.
-            password (str): The user's password.
-            server (str): The server to connect to ('US', 'EU', 'PR').
-            database (str, optional): The specific database to use. Defaults to None.
-
-        Returns:
-            bool: True if login is successful, False otherwise.
         """
         st.session_state.username = username
         st.session_state.password = password
@@ -63,7 +47,7 @@ class Api:
                 url=login_url,
                 json={"username": st.session_state.username, "password": st.session_state.password},
             )
-            response_login.raise_for_status()  # Raise an exception for bad status codes (4xx or 5xx)
+            response_login.raise_for_status()
 
         except requests.exceptions.HTTPError as err:
             if err.response.status_code == 400:
@@ -86,12 +70,6 @@ class Api:
     def select_database(self, db_name):
         """
         Selects a database after a successful login.
-
-        Args:
-            db_name (str): The name of the database to select.
-
-        Returns:
-            bool: True if the database is selected successfully, False otherwise.
         """
         db_info = next((db for db in st.session_state.dbs if db['name'] == db_name), None)
         if not db_info:
@@ -107,33 +85,39 @@ class Api:
             response_database.raise_for_status()
             
             user_data = response_database.json()
+            # Update the authorization token to be database-specific
             st.session_state.session.headers["Authorization"] = f"Bearer {user_data['token']}"
+
+            # FIX: Clear session cookies after getting the DB-specific token.
+            # This prevents potential conflicts where the server might get confused by
+            # seeing both an old session cookie and a new database-specific token.
+            st.session_state.session.cookies.clear()
+            
             st.info(f"Successfully connected to database: {st.session_state.database}")
             return True
         
         except requests.exceptions.RequestException as e:
-            st.error(f"Failed to select database. Status code: {response_database.status_code}, Error: {e}")
+            # Improved error message
+            status_code = e.response.status_code if e.response else "N/A"
+            st.error(f"Failed to select database. Status code: {status_code}, Error: {e}")
             return False
 
     def get_hierarchy(self):
         """
         Fetches the complete asset hierarchy from the API.
-
-        Returns:
-            tuple: A tuple containing two pandas DataFrames (df_hierarchy, df_listname)
-                   or (None, None) if an error occurs.
         """
         if not st.session_state.logged_in or not st.session_state.database:
             st.warning("You must be logged in and have a database selected to fetch hierarchy.")
             return None, None
             
-        base_url = f"https://isee{st.session_state.urlserver}.icareweb.com/apiv4/assets/"
+        # CORRECTION: Inclure l'identifiant de la base de données dans l'URL
+        base_url = f"https://isee{st.session_state.urlserver}.icareweb.com/apiv4/{st.session_state.database}/assets/"
+        
         hierarchy_list = []
         listname = []
         id_to_name_map = {}
         page = 1
-        total_assets = 0
-
+        
         with st.spinner("Fetching hierarchy data... This may take a moment."):
             try:
                 # First call to get metadata
@@ -154,22 +138,19 @@ class Api:
                     assets_data = response.json()
                     
                     if not assets_data.get('_embedded'):
-                        break # No more assets
+                        break
 
                     for asset in assets_data['_embedded']:
-                        # Process listname
                         asset_info = {'_id': asset['_id'], 'name': asset['name']}
                         optionals = asset.get('optionals', {})
                         if 'mac' in optionals:
                             asset_info['mac'] = optionals['mac']
                         elif 'coordinators' in optionals and optionals['coordinators']:
-                             asset_info['mac'] = optionals['coordinators'][0].replace(':', '').lower()
-                        # Add other optional fields as needed
+                            asset_info['mac'] = optionals['coordinators'][0].replace(':', '').lower()
                         listname.append(asset_info)
 
                         id_to_name_map[asset['_id']] = asset['name']
 
-                        # Process hierarchy
                         path_info = {"paths": asset['path'], "name": asset['name'], "_id": asset['_id'], "type": asset['t']}
                         hierarchy_list.append(path_info)
                         
@@ -178,7 +159,6 @@ class Api:
                     progress_bar.progress(min(processed_assets / total_assets, 1.0))
                     page += 1
 
-                # Now that we have the full id_to_name_map, resolve paths
                 for item in hierarchy_list:
                     for i, path_id in enumerate(item['paths']):
                         item[f"level{i+1}"] = id_to_name_map.get(path_id, "Unknown Path ID")
@@ -186,7 +166,6 @@ class Api:
                 df_hierarchy = pd.DataFrame(hierarchy_list)
                 df_listname = pd.DataFrame(listname)
 
-                # Post-processing the hierarchy DataFrame
                 if not df_hierarchy.empty:
                     cols = [c for c in df_hierarchy.columns if c.startswith('level')]
                     other_cols = ['name', '_id', 'type', 'paths']
@@ -196,7 +175,6 @@ class Api:
 
                 st.success(f"Successfully extracted {processed_assets} assets.")
                 
-                # --- Advanced Hierarchy Processing (Factory, Asset, Zone) ---
                 df_hierarchy = self._process_entity(df_hierarchy, 16777221, 'Factory')
                 df_hierarchy = self._process_entity(df_hierarchy, 33554432, 'Asset')
                 df_hierarchy = self._process_entity(df_hierarchy, 16777222, 'Zone')
@@ -215,7 +193,6 @@ class Api:
         try:
             df_entity = df_hierarchy[df_hierarchy['type'] == entity_type]
             if df_entity.empty:
-                st.info(f"No entities of type '{entity_name}' found.")
                 df_hierarchy[f'{entity_name}_id'] = 'noid'
                 df_hierarchy[f'{entity_name.lower()}_name'] = 'noname'
                 return df_hierarchy
@@ -232,7 +209,6 @@ class Api:
 
             df_hierarchy = pd.merge(df_hierarchy, df_entity_name, on=f'{entity_name}_id', how='left')
             df_hierarchy[f'{entity_name.lower()}_name'].fillna('noname', inplace=True)
-            st.success(f"Processed {entity_name} information.")
 
         except Exception as e:
             st.warning(f"Could not process {entity_name} information. Error: {e}")

@@ -37,9 +37,10 @@ def show():
     
     # Display Login/Logout Button
     if st.session_state.get('logged_in', False):
+        st.success(f"✅ Logged in to iSee as {st.session_state.username}")
         if st.button("Logout from iSee"):
             # Reset only iSee-related session state on logout
-            keys_to_delete = ['session', 'username', 'password', 'database', 'urlserver', 'dbs', 'logged_in', 'df_hierarchy', 'df_listname']
+            keys_to_delete = ['session', 'username', 'password', 'database', 'urlserver', 'dbs', 'logged_in', 'df_hierarchy', 'df_listname', 'database_selected']
             for key in keys_to_delete:
                 if key in st.session_state:
                     del st.session_state[key]
@@ -49,13 +50,14 @@ def show():
             if username and password:
                 with st.spinner("Logging in..."):
                     # The login function now handles UI feedback (errors/success)
-                    api.loginAPI(username, password, server)
+                    success = api.loginAPI(username, password, server)
+                    if success:
+                        st.rerun()  # Refresh to show database selection
             else:
                 st.warning("Please enter both username and password.")
 
     # --- Main Content Area for the iSee page ---
     if st.session_state.get('logged_in', False):
-        st.success(f"Logged in to iSee as {st.session_state.username}")
         st.markdown("---")
 
         # --- Database Selection ---
@@ -68,44 +70,70 @@ def show():
                 key="db_selection"
             )
 
-            if st.button("Connect to Database"):
-                 with st.spinner(f"Connecting to {selected_db_name}..."):
+            if st.button("Connect to Database") or not st.session_state.get('database_selected', False):
+                with st.spinner(f"Connecting to {selected_db_name}..."):
                     if api.select_database(selected_db_name):
+                        st.session_state['database_selected'] = True
                         # Clear old data when connecting to a new DB
                         if 'df_hierarchy' in st.session_state:
                             del st.session_state['df_hierarchy']
                         if 'df_listname' in st.session_state:
                             del st.session_state['df_listname']
+                        st.rerun()  # Refresh to show fetch button
         else:
             st.warning("No databases found for this user.")
 
         # --- Data Fetching Section ---
-        if st.session_state.get('database'):
-            st.header(f"Database: `{st.session_state.database}`")
+        if st.session_state.get('database') and st.session_state.get('database_selected', False):
+            st.success(f"✅ Connected to database: `{st.session_state.database}`")
+            st.markdown("---")
             
-            if st.button("Fetch Hierarchy Data"):
+            # Add debug info
+            with st.expander("🔧 Debug Information"):
+                st.write("**Session State Debug:**")
+                st.write(f"- Username: {st.session_state.get('username', 'Not set')}")
+                st.write(f"- Server URL: {st.session_state.get('urlserver', 'Not set')}")
+                st.write(f"- Database ID: {st.session_state.get('database', 'Not set')}")
+                st.write(f"- Number of available databases: {len(st.session_state.get('dbs', []))}")
+                
+                # Show the complete URL that will be used
+                if st.session_state.get('database') and st.session_state.get('urlserver') is not None:
+                    hierarchy_url = f"https://isee{st.session_state.urlserver}.icareweb.com/apiv4/{st.session_state.database}/assets/"
+                    st.write(f"- Hierarchy URL: `{hierarchy_url}`")
+            
+            if st.button("🔄 Fetch Hierarchy Data"):
                 # The get_hierarchy method now handles its own spinner and progress
                 df_hierarchy, df_listname = api.get_hierarchy()
                 if df_hierarchy is not None and df_listname is not None:
                     # Store dataframes in session state to persist them
                     st.session_state['df_hierarchy'] = df_hierarchy
                     st.session_state['df_listname'] = df_listname
+                    st.rerun()  # Refresh to show the data
             
             # --- Display Data and Download Buttons ---
             if 'df_hierarchy' in st.session_state and 'df_listname' in st.session_state:
-                st.subheader("Hierarchy Data Preview")
-                st.dataframe(st.session_state['df_hierarchy'])
+                st.success(f"✅ Data fetched successfully!")
                 
-                st.subheader("List Name Data Preview")
-                st.dataframe(st.session_state['df_listname'])
+                # Show data statistics
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("Hierarchy Records", len(st.session_state['df_hierarchy']))
+                with col2:
+                    st.metric("Asset Records", len(st.session_state['df_listname']))
                 
-                st.subheader("Download Data")
+                st.subheader("📊 Hierarchy Data Preview")
+                st.dataframe(st.session_state['df_hierarchy'].head(10))  # Show only first 10 rows
+                
+                st.subheader("📋 List Name Data Preview")
+                st.dataframe(st.session_state['df_listname'].head(10))  # Show only first 10 rows
+                
+                st.subheader("💾 Download Data")
                 col1, col2 = st.columns(2)
                 
                 with col1:
                     csv_hierarchy = convert_df_to_csv(st.session_state['df_hierarchy'])
                     st.download_button(
-                        label="Download Hierarchy CSV",
+                        label="📥 Download Hierarchy CSV",
                         data=csv_hierarchy,
                         file_name=f"{st.session_state.database}_hierarchy.csv",
                         mime="text/csv",
@@ -114,12 +142,15 @@ def show():
                 with col2:
                     csv_listname = convert_df_to_csv(st.session_state['df_listname'])
                     st.download_button(
-                        label="Download List Name CSV",
+                        label="📥 Download List Name CSV",
                         data=csv_listname,
                         file_name=f"{st.session_state.database}_listname.csv",
                         mime="text/csv",
                     )
 
     elif not st.session_state.get('logged_in', False) and st.session_state.get('username') is not None:
-         st.info("Please log in to the iSee API to continue.")
+         st.info("ℹ️ Please log in to the iSee API to continue.")
 
+# For debugging - you can run this directly
+if __name__ == "__main__":
+    show()
