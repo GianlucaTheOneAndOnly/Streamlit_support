@@ -20,7 +20,7 @@ def show():
         if key not in st.session_state:
             st.session_state[key] = None if key not in ['logged_in', 'database_selected'] else False
 
-    api = st.session_state.api_client
+    api = st.session_state.api_client or Api()
 
     # Try to load default credentials from secrets if available
     try:
