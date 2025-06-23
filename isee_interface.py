@@ -66,9 +66,9 @@ def show():
                     if isinstance(db_list, list):
                         st.session_state.api_client = api
                         st.session_state.dbs = db_list
-                        st.session_state.username = username
-                        st.session_state.password = password
-                        st.session_state.server = server
+                        #st.session_state.username = username
+                        #st.session_state.password = password
+                        #st.session_state.server = server
                         st.success("Login successful! Please select a database.")
                     else:
                         st.error(db_list)  # error message from API
