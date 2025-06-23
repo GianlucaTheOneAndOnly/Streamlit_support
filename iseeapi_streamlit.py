@@ -98,6 +98,7 @@ class Api:
 
         # CORRECTION PRINCIPALE: Utiliser le nom technique de la base (db_info['db'])
         st.session_state.database = db_info['db']
+        st.session_state.session.headers["X-ICARE-DB"] = db_info["db"]
 
         # CORRECTION: Construire l'URL correctement - POST au lieu de GET
         login_url = f"https://isee{st.session_state.urlserver}.icareweb.com/apiv4/login/"
@@ -317,6 +318,10 @@ class Api:
         
         base_url = f"https://isee{st.session_state.urlserver}.icareweb.com/apiv4/{st.session_state.database}"
         
+
+        st.write("🔍 Headers envoyés :")
+        st.json(dict(st.session_state.session.headers))
+
         # Endpoints à tester par ordre de complexité
         endpoints = [
             ("Database Info", ""),
