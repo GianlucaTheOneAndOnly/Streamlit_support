@@ -88,7 +88,7 @@ if 'command_history' not in st.session_state:
 st.sidebar.title("Navigation")
 page = st.sidebar.radio(
     "Sélectionner une page:", 
-    ["Individual diagnostic", "Mass diagnostic", "Firmware Update"]
+    ["Individual diagnostic", "Mass diagnostic", "Firmware Update", "iSee Hierachy"]
 )
 
 # --- Sidebar History Section ---
@@ -104,6 +104,9 @@ elif page == "Mass diagnostic":
 elif page == "Firmware Update":
     import csv_firmware
     csv_firmware.show()
+elif page == "iSee Hierachy":
+    import isee_page
+    isee_page.show()
 
 # --- History Display ---
 with st.sidebar.expander("📜 Command history", expanded=False):
