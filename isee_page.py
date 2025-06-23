@@ -125,6 +125,11 @@ def show():
                     st.session_state['df_listname'] = df_listname
                     st.rerun()  # Refresh to show the data
             
+
+            if st.button("🧪 Test API Access"):
+                api.test_api_access()
+
+
             # --- Display Data and Download Buttons ---
             if 'df_hierarchy' in st.session_state and 'df_listname' in st.session_state:
                 st.success(f"✅ Data fetched successfully!")

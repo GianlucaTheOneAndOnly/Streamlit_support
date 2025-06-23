@@ -16,7 +16,13 @@ class Api:
         """
         if 'session' not in st.session_state:
             st.session_state.session = requests.Session()
-            st.session_state.session.headers.update({"Accept-Language": "en", "Accept": "application/json"})
+            # CORRECTION: Ajouter des headers plus complets
+            st.session_state.session.headers.update({
+                "Accept-Language": "en",
+                "Accept": "application/json",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+                "Content-Type": "application/json"
+            })
         
         # Initialize other session state variables if they don't exist
         if 'username' not in st.session_state: st.session_state.username = ""
@@ -270,3 +276,46 @@ class Api:
             df_hierarchy[f'{entity_name.lower()}_name'] = 'noname'
             
         return df_hierarchy
+    
+    def test_api_access(self):
+        """
+        Teste l'accès à différents endpoints pour diagnostiquer le problème
+        """
+        if not st.session_state.logged_in or not st.session_state.database:
+            st.warning("You must be logged in and have a database selected.")
+            return
+        
+        base_url = f"https://isee{st.session_state.urlserver}.icareweb.com/apiv4/{st.session_state.database}"
+        
+        # Endpoints à tester par ordre de complexité
+        endpoints = [
+            ("Database Info", ""),
+            ("User Info", "/user"),
+            ("Assets (single)", "/assets/?p=1&count=1"),
+            ("Assets (small batch)", "/assets/?p=1&count=10")
+        ]
+        
+        st.subheader("🧪 API Access Test")
+        
+        for name, endpoint in endpoints:
+            test_url = base_url + endpoint
+            try:
+                st.write(f"Testing {name}: `{test_url}`")
+                response = st.session_state.session.get(test_url)
+                
+                if response.status_code == 200:
+                    st.success(f"✅ {name}: SUCCESS")
+                    if endpoint == "":  # Database info
+                        data = response.json()
+                        st.write(f"Database name: {data.get('name', 'Unknown')}")
+                elif response.status_code == 403:
+                    st.error(f"❌ {name}: FORBIDDEN")
+                    st.write(f"Response: {response.text[:200]}...")
+                else:
+                    st.warning(f"⚠️ {name}: Status {response.status_code}")
+                    st.write(f"Response: {response.text[:200]}...")
+                    
+            except Exception as e:
+                st.error(f"❌ {name}: ERROR - {e}")
+            
+            st.write("---")
