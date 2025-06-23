@@ -89,7 +89,7 @@ def show():
                         st.session_state.df_hierarchy = None
                         st.session_state.df_listname = None
                         st.success(f"Connected to database: {selected_db_name}")
-                        st.experimental_rerun()
+                        #st.experimental_rerun()
                     else:
                         st.error(success)
             else:
