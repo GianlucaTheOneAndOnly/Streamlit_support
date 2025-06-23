@@ -18,7 +18,13 @@ def show():
         if key not in st.session_state:
             st.session_state[key] = None if key not in ['logged_in', 'database_selected'] else False
 
-    api = st.session_state.api_client or Api()
+    # Initialize or reuse API client properly
+    if st.session_state.api_client is not None:
+        api = st.session_state.api_client
+    elif st.session_state.username and st.session_state.password and st.session_state.server:
+        api = Api(st.session_state.username, st.session_state.password, st.session_state.server)
+    else:
+        api = None
 
     # Try to load default credentials from secrets if available
     try:
@@ -55,9 +61,7 @@ def show():
             if username and password:
                 with st.spinner("Logging in..."):
                     # Create new Api instance with credentials
-                    api = Api()
-                    api.username = username
-                    api.password = password
+                    api = Api(username, password)
                     db_list = api.login_step1_get_dbs(server)
                     if isinstance(db_list, list):
                         st.session_state.api_client = api

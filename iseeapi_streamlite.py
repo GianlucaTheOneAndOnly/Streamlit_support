@@ -15,10 +15,12 @@ class Api:
     and data processing.
     """
     SERVER_RESPONSE = ("EU", "US", "PR")
+    username = None
+    password = None
 
-    def __init__(self):
-        self.username = None
-        self.password = None
+    def __init__(self,username,password):
+        self.username = username
+        self.password = password
         self.database = None
         self.headers = {"Accept-Language": "en", "Accept": "application/json"}
         self.urlserver = None
