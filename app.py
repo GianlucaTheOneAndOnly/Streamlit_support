@@ -105,8 +105,8 @@ elif page == "Firmware Update":
     import csv_firmware
     csv_firmware.show()
 elif page == "iSee Hierachy":
-    import isee_page
-    isee_page.show()
+    import isee_interface
+    isee_interface.show()
 
 # --- History Display ---
 with st.sidebar.expander("📜 Command history", expanded=False):
