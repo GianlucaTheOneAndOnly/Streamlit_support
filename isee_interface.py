@@ -55,7 +55,9 @@ def show():
             if username and password:
                 with st.spinner("Logging in..."):
                     # Create new Api instance with credentials
-                    api = Api(username, password)
+                    api = Api()
+                    api.username = username
+                    api.password = password
                     db_list = api.login_step1_get_dbs(server)
                     if isinstance(db_list, list):
                         st.session_state.api_client = api
