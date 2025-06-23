@@ -16,7 +16,7 @@ class Api:
         """
         if 'session' not in st.session_state:
             st.session_state.session = requests.Session()
-            # Headers plus complets
+            # CORRECTION: Ajouter des headers plus complets
             st.session_state.session.headers.update({
                 "Accept-Language": "en",
                 "Accept": "application/json",
@@ -75,9 +75,9 @@ class Api:
 
     def select_database(self, db_name):
         """
-        CORRECTED: Selects a database after a successful login.
+        Selects a database after a successful login.
         """
-        # Vérifications initiales
+        # Vérifier que les informations nécessaires sont bien présentes
         if 'dbs' not in st.session_state or not st.session_state.dbs:
             st.error("❌ Aucune base de données disponible en session. Avez-vous bien effectué la connexion ?")
             return False
@@ -96,27 +96,17 @@ class Api:
             st.error("❌ Base de données sélectionnée introuvable.")
             return False
 
-        # CORRECTION PRINCIPALE: Utiliser le nom technique de la base (db_info['db'])
+        # Sauvegarder le nom technique de la base dans la session
         st.session_state.database = db_info['db']
 
-        # CORRECTION: Construire l'URL correctement - POST au lieu de GET
+        # Construire l’URL de login avec le bon suffixe serveur
         login_url = f"https://isee{st.session_state.urlserver}.icareweb.com/apiv4/login/"
-        
-        st.write(f"🔍 Debug: Sélection de la base '{db_name}' (DB: {st.session_state.database})")
-        st.write(f"🔍 Debug: URL de login: `{login_url}`")
+        choose_url = login_url + st.session_state.database
+
+        st.write(f"🔍 Debug: Tentative de connexion à l’URL: `{choose_url}`")
 
         try:
-            # CORRECTION: Utiliser POST avec le nom technique de la base dans le payload
-            payload = {
-                "username": st.session_state.username,
-                "password": st.session_state.password,
-                "db": st.session_state.database  # Nom technique de la base
-            }
-            
-            response_database = st.session_state.session.post(
-                url=login_url,
-                json=payload
-            )
+            response_database = st.session_state.session.get(url=choose_url)
 
             st.write(f"🔍 Debug: Code retour HTTP: {response_database.status_code}")
             if response_database.status_code != 200:
@@ -130,29 +120,19 @@ class Api:
                 st.error("❌ Aucun token reçu après sélection de la base.")
                 return False
 
-            # Mettre à jour le token d'autorisation
             new_token = user_data['token']
             st.session_state.session.headers["Authorization"] = f"Bearer {new_token}"
-            
-            # CORRECTION: Ne pas effacer les cookies, ils peuvent être nécessaires
-            # st.session_state.session.cookies.clear()
+            st.session_state.session.cookies.clear()
 
-            st.success(f"✅ Connexion à la base « {db_name} » (DB: {st.session_state.database}) réussie.")
+            st.success(f"✅ Connexion à la base « {st.session_state.database} » réussie.")
             return True
 
         except requests.exceptions.HTTPError as e:
             status_code = e.response.status_code if e.response else "N/A"
             if status_code == 403:
                 st.error("❌ Accès interdit à cette base. Vérifiez vos droits.")
-                st.error("💡 Causes possibles:")
-                st.error("• Votre compte n'a pas les droits d'accès à cette base")
-                st.error("• Le nom technique de la base est incorrect")
-                st.error("• Le token d'authentification a expiré")
             elif status_code == 404:
                 st.error("❌ Base introuvable. Le nom technique est peut-être erroné.")
-            elif status_code == 400:
-                st.error("❌ Paramètres de requête invalides.")
-                st.error("💡 Vérifiez que le nom technique de la base est correct.")
             else:
                 st.error(f"❌ Erreur HTTP {status_code}: {e}")
             return False
@@ -160,6 +140,7 @@ class Api:
         except requests.exceptions.RequestException as e:
             st.error(f"❌ Erreur réseau lors de la connexion à la base: {e}")
             return False
+
 
     def get_hierarchy(self):
         """
@@ -170,6 +151,7 @@ class Api:
         st.write(f"- Database: {st.session_state.get('database', 'MISSING')}")
         st.write(f"- URL Server: {st.session_state.get('urlserver', 'MISSING')}")
         st.write(f"- Logged in: {st.session_state.get('logged_in', False)}")
+
 
         if not st.session_state.logged_in or not st.session_state.database:
             st.warning("You must be logged in and have a database selected to fetch hierarchy.")
@@ -397,48 +379,3 @@ class Api:
                 st.caption(f"`{url}` → Réponse : {preview}...")
             except Exception as e:
                 st.error(f"{label} → Exception : {e}")
-
-    def check_database_selection_method(self):
-        """
-        NOUVELLE MÉTHODE: Teste différentes approches pour la sélection de base
-        """
-        if not st.session_state.logged_in:
-            st.warning("Vous devez d'abord vous connecter.")
-            return
-            
-        st.subheader("🔬 Test des méthodes de sélection de base")
-        
-        # Méthode 1: GET avec URL modifiée (votre méthode actuelle - incorrecte)
-        st.markdown("#### Méthode 1: GET sur /login/{database} (INCORRECTE)")
-        if st.session_state.dbs:
-            db_info = st.session_state.dbs[0]  # Prendre la première base
-            test_url = f"https://isee{st.session_state.urlserver}.icareweb.com/apiv4/login/{db_info['db']}"
-            try:
-                resp = st.session_state.session.get(test_url)
-                st.write(f"GET {test_url} → {resp.status_code}")
-                st.write(f"Réponse: {resp.text[:200]}...")
-            except Exception as e:
-                st.error(f"Erreur: {e}")
-        
-        # Méthode 2: POST avec payload complet (CORRECTE)
-        st.markdown("#### Méthode 2: POST sur /login/ avec payload complet (CORRECTE)")
-        if st.session_state.dbs:
-            db_info = st.session_state.dbs[0]
-            login_url = f"https://isee{st.session_state.urlserver}.icareweb.com/apiv4/login/"
-            payload = {
-                "username": st.session_state.username,
-                "password": st.session_state.password,
-                "db": db_info['db']
-            }
-            try:
-                resp = st.session_state.session.post(login_url, json=payload)
-                st.write(f"POST {login_url} → {resp.status_code}")
-                if resp.status_code == 200:
-                    st.success("✅ Cette méthode fonctionne!")
-                    data = resp.json()
-                    if 'token' in data:
-                        st.write("Token reçu avec succès")
-                else:
-                    st.write(f"Réponse: {resp.text[:200]}...")
-            except Exception as e:
-                st.error(f"Erreur: {e}")
