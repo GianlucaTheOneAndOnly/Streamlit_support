@@ -1,7 +1,11 @@
 import streamlit as st
 import pandas as pd
-from iseeapi_streamlit import Api  # Assumes iseeapi_streamlit.py is in the same directory
+from iseeapi_streamlite_simplified import Api  # Assumes iseeapi_streamlit.py is in the same directory
 import os
+
+
+
+
 
 # --- Helper function to convert DataFrame to CSV for downloading ---
 @st.cache_data
