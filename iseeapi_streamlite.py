@@ -16,7 +16,7 @@ class Api:
     """
     SERVER_RESPONSE = ("EU", "US", "PR")
 
-    def __init__(self, username, password):
+    def __init__(self):
         self.username = None
         self.password = None
         self.database = None
