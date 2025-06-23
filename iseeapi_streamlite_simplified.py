@@ -124,55 +124,58 @@ class Api:
         
         with st.spinner("Fetching hierarchy data... This may take a moment."):
             try:
-                # Afficher les informations de debug
-                st.write(f"🔍 Debug: Calling URL: {base_url}?p=1&count=1")
-                st.write(f"🔍 Debug: Authorization header present: {'Authorization' in st.session_state.session.headers}")
-                
-                # First call to get metadata
-                initial_response = st.session_state.session.get(f"{base_url}?p=1&count=1")
-                
-                # Log des détails de la réponse pour le debug
-                st.write(f"🔍 Debug: Response status code: {initial_response.status_code}")
-                if initial_response.status_code != 200:
-                    st.write(f"🔍 Debug: Response text: {initial_response.text}")
-                    
-                initial_response.raise_for_status()
-                
-                meta = initial_response.json().get('_meta', {})
-                total_assets = meta.get('total', 0)
-                if total_assets == 0:
-                    st.warning("No assets found in the hierarchy.")
-                    return pd.DataFrame(), pd.DataFrame()
+                page = 1
+                nbr_assets = 0
+                dictoname = dict()
+                listname = list()
+                hierarchy = list()
 
-                progress_bar = st.progress(0)
-                processed_assets = 0
-                
-                while processed_assets < total_assets:
-                    response = st.session_state.session.get(f"{base_url}?p={page}&count=1000")
-                    response.raise_for_status()
-                    assets_data = response.json()
-                    
-                    if not assets_data.get('_embedded'):
-                        break
+                # Première requête pour récupérer le total
+                response = self.session.get(
+                    url=f"https://isee{self.urlserver}.icareweb.com/apiv4/assets/?p=1&count=1000"
+                )
+                assets = response.json()
 
-                    for asset in assets_data['_embedded']:
-                        asset_info = {'_id': asset['_id'], 'name': asset['name']}
-                        optionals = asset.get('optionals', {})
-                        if 'mac' in optionals:
-                            asset_info['mac'] = optionals['mac']
-                        elif 'coordinators' in optionals and optionals['coordinators']:
-                            asset_info['mac'] = optionals['coordinators'][0].replace(':', '').lower()
-                        listname.append(asset_info)
+                while nbr_assets < assets['_meta']['total']:
+                    response = self.session.get(
+                        url=f"https://isee{self.urlserver}.icareweb.com/apiv4/assets/?p={page}&count=1000"
+                    )
+                    assets = response.json()
 
-                        id_to_name_map[asset['_id']] = asset['name']
+                    for asset in assets['_embedded']:
+                        if 'mac' in asset['optionals'].keys():
+                            listname.append(
+                                {'_id': asset['_id'], 'name': asset['name'], 'mac': asset['optionals']['mac']})
+                        elif 'coordinators' in asset['optionals'].keys():
+                            listname.append({'_id': asset['_id'], 'name': asset['name'],
+                                            'mac': asset['optionals']['coordinators'][0].replace(':', '').lower()})
+                        elif 'transmitter' in asset['optionals'].keys():
+                            listname.append(
+                                {'_id': asset['_id'], 'name': asset['name'], 'transmitter': asset['optionals']['transmitter']})
+                        elif 'criticality' in asset['optionals'].keys():
+                            listname.append(
+                                {'_id': asset['_id'], 'name': asset['name'], 'criticality': asset['optionals']['criticality']})
+                        elif 'equipment_type' in asset['optionals'].keys():
+                            listname.append(
+                                {'_id': asset['_id'], 'name': asset['name'], 'equipment_type': asset['optionals']['equipment_type']})
+                        else:
+                            listname.append(
+                                {'_id': asset['_id'], 'name': asset['name'], 'criticality': "", 'equipment_type': ""})
 
-                        path_info = {"paths": asset['path'], "name": asset['name'], "_id": asset['_id'], "type": asset['t']}
-                        hierarchy_list.append(path_info)
-                        
-                        processed_assets += 1
-                    
-                    progress_bar.progress(min(processed_assets / total_assets, 1.0))
+                        dictoname[f"{asset['_id']}"] = asset['name']
+
+                        hierarchy.append(
+                            {"paths": asset['path'], "name": asset['name'], "_id": asset['_id'], "type": asset['t']})
+                        _level = 1
+                        for path in hierarchy[nbr_assets]["paths"]:
+                            hierarchy[nbr_assets].update({f"level{_level}": dictoname.get(path, "Unknown Path ID")})
+                            _level += 1
+
+                        nbr_assets += 1
+
                     page += 1
+
+
 
                 for item in hierarchy_list:
                     for i, path_id in enumerate(item['paths']):
