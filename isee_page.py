@@ -37,6 +37,21 @@ def show():
     
     # Display Login/Logout Button
     if st.session_state.get('logged_in', False):
+
+        with st.expander("🔧 Debug - Session State"):
+            st.write("**Données stockées dans st.session_state :**")
+            st.write(f"- Username: {st.session_state.get('username', 'NOT SET')}")
+            st.write(f"- Password: {'***' if st.session_state.get('password') else 'NOT SET'}")
+            st.write(f"- Server URL suffix: {st.session_state.get('urlserver', 'NOT SET')}")
+            st.write(f"- Database ID: {st.session_state.get('database', 'NOT SET')}")
+            st.write(f"- Logged in: {st.session_state.get('logged_in', False)}")
+            st.write(f"- Number of databases: {len(st.session_state.get('dbs', []))}")
+            st.write(f"- Session object exists: {'session' in st.session_state}")
+            st.write(f"- Authorization header: {'Authorization' in st.session_state.session.headers if 'session' in st.session_state else 'NO SESSION'}")
+
+
+
+
         st.success(f"✅ Logged in to iSee as {st.session_state.username}")
         if st.button("Logout from iSee"):
             # Reset only iSee-related session state on logout

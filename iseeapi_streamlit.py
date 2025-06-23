@@ -128,6 +128,13 @@ class Api:
         """
         Fetches the complete asset hierarchy from the API.
         """
+        st.write("🔍 Debug - Checking session state:")
+        st.write(f"- Username: {st.session_state.get('username', 'MISSING')}")
+        st.write(f"- Database: {st.session_state.get('database', 'MISSING')}")
+        st.write(f"- URL Server: {st.session_state.get('urlserver', 'MISSING')}")
+        st.write(f"- Logged in: {st.session_state.get('logged_in', False)}")
+
+
         if not st.session_state.logged_in or not st.session_state.database:
             st.warning("You must be logged in and have a database selected to fetch hierarchy.")
             return None, None
