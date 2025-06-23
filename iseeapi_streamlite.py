@@ -17,8 +17,8 @@ class Api:
     SERVER_RESPONSE = ("EU", "US", "PR")
 
     def __init__(self, username, password):
-        self.username = username
-        self.password = password
+        self.username = None
+        self.password = None
         self.database = None
         self.headers = {"Accept-Language": "en", "Accept": "application/json"}
         self.urlserver = None
