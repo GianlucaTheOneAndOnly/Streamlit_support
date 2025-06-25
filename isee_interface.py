@@ -122,15 +122,18 @@ def show():
                 else:
                     st.error("Failed to fetch hierarchy data.")
 
+        ### CODE LEGACY  : not used
         # Additional diagnostic buttons if you want
-        if st.button("Run Full API Diagnostic"):
-            st.session_state.api_client.run_diagnostic()
+        #if st.button("Run Full API Diagnostic"):
+         #   st.session_state.api_client.run_diagnostic()
 
-        if st.button("Test API Access"):
-            st.session_state.api_client.test_api_access()
+        #if st.button("Test API Access"):
+          #  st.session_state.api_client.test_api_access()
 
-        if st.button("Check Database Selection Method"):
-            st.session_state.api_client.check_database_selection_method()
+        #if st.button("Check Database Selection Method"):
+        #    st.session_state.api_client.check_database_selection_method()
+        ### end of code legacy
+
 
         # Display data and download options
         if st.session_state.df_hierarchy is not None and st.session_state.df_listname is not None:
