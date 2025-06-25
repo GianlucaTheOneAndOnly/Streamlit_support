@@ -22,7 +22,8 @@ def show():
     if st.session_state.api_client is not None:
         api = st.session_state.api_client
     elif st.session_state.username and st.session_state.password and st.session_state.server:
-        api = Api(st.session_state.username, st.session_state.password, st.session_state.server)
+        #api = Api(st.session_state.username, st.session_state.password, st.session_state.server)
+        api = Api(st.session_state.username, st.session_state.password)
     else:
         api = None
 
