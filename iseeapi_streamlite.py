@@ -198,6 +198,10 @@ class Api:
             if 'level1' in df_hierarchy.columns:
                 df_hierarchy = df_hierarchy[df_hierarchy['level1'] != 'Recycle bin'].reset_index(drop=True)
             
+            # re order the columns to get level1,... first following by name,id,type
+            df_hierarchy = df_hierarchy[[c for c in df_hierarchy if c not in [
+                'name', '_id', 'type']] + ['name', '_id', 'type']]
+
             df_hierarchy_processed = df_hierarchy # In your final code, this should be the result of all your merges.
 
         return df_hierarchy_processed, df_listname
