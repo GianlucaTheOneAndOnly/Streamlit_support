@@ -1,102 +1,132 @@
 import streamlit as st
 import json
-from src.auth import check_password # Assuming you have a logout function here too
+from streamlit.components.v1 import html
+from src.auth import check_password
 
 # --- Page Configuration (Must be the first Streamlit command) ---
-# This config applies to all pages
 st.set_page_config(
-    page_title="Accueil - Outil de Diagnostic",
+    page_title="Diagnostic Tool - Home",
     page_icon="🛠️",
     layout="wide",
-    initial_sidebar_state="auto" # 'auto' is often better than 'collapsed'
+    initial_sidebar_state="auto"
 )
 
 # --- Authentication ---
-# This will run before any page is displayed, protecting the whole app.
+# This check protects the entire app. If it fails, the script stops here.
 if not check_password():
     st.stop()
 
 # --- Apply Custom Global Styling ---
-# This CSS will be injected into every page automatically.
+# This CSS is injected into every page.
 st.markdown("""
 <style>
-    /* Make headers closer to the original */
+    /* Main headers */
     h1, h2 {
-        color: #1e88e5; /* --primary-color */
-        border-bottom: 2px solid #e3f2fd; /* --secondary-color */
+        color: #1e88e5; /* A nice blue color */
+        border-bottom: 2px solid #eef2f6; /* A light separator line */
         padding-bottom: 0.5rem;
     }
-    .stButton>button {
-        /* General button styling can go here */
-    }
-    /* ... (keep all your other CSS classes like .command-item-container, etc.) ... */
-    .uid-command-display {
-        padding: 1rem;
+    /* Style for the navigation cards on the homepage */
+    .nav-card {
         background-color: #f8f9fa;
-        border-left: 4px solid #1e88e5;
-        font-family: monospace;
-        font-size: 1.1rem;
-        word-break: break-all;
-        margin-bottom: 0.5rem;
+        border: 1px solid #dee2e6;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        text-align: center;
+        transition: transform 0.2s;
+    }
+    .nav-card:hover {
+        transform: scale(1.03);
+        border-color: #1e88e5;
     }
 </style>
 """, unsafe_allow_html=True)
 
 
-# --- Initialize Session State (if not already done) ---
-if 'command_history' not in st.session_state:
-    st.session_state.command_history = []
+def display_homepage():
+    """Renders the main content of the homepage."""
+    st.title("Welcome to the Network Diagnostic Tool")
+    st.markdown("---")
+    st.header("How to Use This Application")
+    st.info("👈 **Select a tool from the sidebar** or use one of the quick access panels below to get started.")
 
-# --- Main Homepage Content ---
-# This is what users will see when they first land on your app.
-st.title("Bienvenue sur l'Outil de Diagnostic Réseau")
-st.markdown("---")
-st.header("Comment utiliser cette application :")
-st.info("👈 **Veuillez sélectionner un outil dans le menu de navigation** qui est apparu dans la barre latérale pour commencer.")
+    st.markdown("This application provides several modules to help you diagnose network issues and manage devices.")
+    st.markdown("### Available Tools:")
 
-st.markdown("""
-Cette application fournit plusieurs modules pour vous aider à diagnostiquer les problèmes de réseau et à gérer les appareils.
+    # --- Interactive Navigation using st.page_link in columns ---
+    col1, col2 = st.columns(2)
 
-### Outils Disponibles:
-- **Individual diagnostic:** Pour lancer des commandes sur un seul appareil.
-- **Mass diagnostic:** Pour exécuter des commandes sur une liste d'appareils.
-- **Firmware Update:** Pour générer des fichiers de mise à jour.
-- **iSee Hierarchy:** Pour explorer et télécharger la hiérarchie des appareils.
-""")
+    with col1:
+        st.page_link(
+            "pages/1_individual_Diagnostic.py",
+            label="### Individual Diagnostic",
+            icon="🎯"
+        )
+        st.markdown("Run commands on a single device by its UID.")
+
+        st.page_link(
+            "pages/3_Firmware_update.py", # Assuming this is the correct path
+            label="### Firmware Update",
+            icon="⬆️"
+        )
+        st.markdown("Generate firmware update files for devices.")
+
+    with col2:
+        st.page_link(
+            "pages/2_Batch_diagnostic.py", # Assuming this is the correct path
+            label="### Mass Diagnostic",
+            icon="🚀"
+        )
+        st.markdown("Execute commands on a list of devices simultaneously.")
+
+        st.page_link(
+            "pages/4_Download_Hierarchy.py",
+            label="### iSee Hierarchy",
+            icon="📂"
+        )
+        st.markdown("Explore and download the asset hierarchy.")
 
 
-# --- Global Sidebar Elements ---
-# Everything in the sidebar here will appear on ALL pages.
-st.sidebar.title("⚙️ Actions & Historique")
+def display_sidebar():
+    """Renders the global sidebar content for all pages."""
+    with st.sidebar:
+        st.title("⚙️ Actions & History")
 
-# History Display in the sidebar
-with st.sidebar.expander("📜 Historique des commandes", expanded=False):
-    if not st.session_state.command_history:
-        st.write("L'historique est vide.")
-    else:
-        # Display history in reverse for recent commands first
-        for j, hist_cmd in enumerate(reversed(st.session_state.command_history)):
-            st.code(hist_cmd, language='bash')
-            st.caption(f"Commande {len(st.session_state.command_history) - j}")
-            st.markdown("---")
+        # History Display in the sidebar
+        with st.expander("📜 Command History", expanded=True):
+            if not st.session_state.get('command_history', []):
+                st.write("History is empty.")
+            else:
+                # Display history commands
+                for cmd in st.session_state.command_history:
+                    st.code(cmd, language='bash')
+                
+                st.markdown("---") # Separator
 
-    if st.session_state.command_history:
-        if st.button("Effacer l'historique", key="clear_history"):
-            st.session_state.command_history = []
+                # Clear History button
+                if st.button("Clear History", key="clear_history"):
+                    st.session_state.command_history = []
+                    st.rerun()
+
+                # Download history functionality
+                history_json = json.dumps(st.session_state.command_history, indent=2)
+                st.download_button(
+                    label="Download History (JSON)",
+                    data=history_json,
+                    file_name="command_history.json",
+                    mime="application/json",
+                    key="download_history"
+                )
+
+        st.markdown("---")
+
+        # --- Functional Logout Button ---
+        if st.button("Logout"):
+            st.session_state["password_correct"] = False
             st.rerun()
 
-        # Download history functionality
-        history_json = json.dumps(st.session_state.command_history, indent=2)
-        st.download_button(
-            label="Télécharger l'historique (JSON)",
-            data=history_json,
-            file_name="command_history.json",
-            mime="application/json",
-            key="download_history"
-        )
+        st.info("Application for remote diagnostics.")
 
-st.sidebar.markdown("---")
-st.sidebar.info("Application pour le diagnostic à distance.")
-# If you have a logout button function, you can call it here
-# add_logout_button()
-
+# --- Main App Execution ---
+display_homepage()
+display_sidebar()
