@@ -58,7 +58,7 @@ def display_homepage():
 
     with col1:
         st.page_link(
-            "pages/1_individual_Diagnostic.py",
+            "pages/1_Individual_Diagnostic.py",
             label="### Individual Diagnostic",
             icon="🎯"
         )
@@ -73,7 +73,7 @@ def display_homepage():
 
     with col2:
         st.page_link(
-            "pages/2_Batch_diagnostic.py", # Assuming this is the correct path
+            "pages/2_Batch_Diagnostic.py", # Assuming this is the correct path
             label="### Mass Diagnostic",
             icon="🚀"
         )
