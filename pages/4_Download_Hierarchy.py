@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
-from iseeapi_streamlite import Api  # Your existing API class file
-
+from src.api import Api  # Your existing API class file
+from src.auth import secure_page
 
 # Cache CSV conversion for better performance
 @st.cache_data
@@ -9,7 +9,8 @@ def convert_df_to_csv(df):
     return df.to_csv(index=False).encode('utf-8')
 
 
-def show():
+@secure_page
+def render_hierarchy_page():
     st.title("I-CARE API Data Extractor")
     st.markdown("Connect to the iSee API, fetch asset hierarchy, and download data as CSV files.")
 
@@ -202,3 +203,7 @@ def show():
         st.info("Please select a database to continue.")
     else:
         st.info("Please login to continue.")
+
+
+    
+render_hierarchy_page()

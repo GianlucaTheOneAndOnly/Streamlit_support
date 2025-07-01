@@ -1,20 +1,23 @@
 import streamlit as st
-from password import check_password, add_logout_button
+import json
+from src.auth import check_password # Assuming you have a logout function here too
 
 # --- Page Configuration (Must be the first Streamlit command) ---
+# This config applies to all pages
 st.set_page_config(
-    page_title="Network Diagnostic Tool",
+    page_title="Accueil - Outil de Diagnostic",
     page_icon="🛠️",
     layout="wide",
-    initial_sidebar_state="collapsed"
-)   
+    initial_sidebar_state="auto" # 'auto' is often better than 'collapsed'
+)
 
-# --- Authentification ---
+# --- Authentication ---
+# This will run before any page is displayed, protecting the whole app.
 if not check_password():
     st.stop()
 
-
-# --- Apply Custom Styling ---
+# --- Apply Custom Global Styling ---
+# This CSS will be injected into every page automatically.
 st.markdown("""
 <style>
     /* Make headers closer to the original */
@@ -24,126 +27,76 @@ st.markdown("""
         padding-bottom: 0.5rem;
     }
     .stButton>button {
-        /* You can add some general button styling here if needed */
-        /* For specific buttons, you might need more targeted selectors or use st.columns for layout */
+        /* General button styling can go here */
     }
-    .command-item-container {
-        border: 1px solid #ddd;
-        border-radius: 4px; /* --border-radius */
-        padding: 0.75rem 1rem;
-        margin-bottom: 0.5rem;
-        background-color: #fff;
-    }
-    .command-item-container:hover {
-        background-color: #e3f2fd; /* --secondary-color */
-    }
-    .command-desc {
-        font-size: 0.85rem;
-        color: #666;
-        margin-top: 0.25rem;
-    }
-    .command-category-badge {
-        display: inline-block;
-        font-size: 0.75rem;
-        background-color: #e3f2fd; /* --secondary-color */
-        color: #1e88e5; /* --primary-color */
-        padding: 0.2rem 0.5rem;
-        border-radius: 10px;
-        margin-right: 0.5rem;
-    }
+    /* ... (keep all your other CSS classes like .command-item-container, etc.) ... */
     .uid-command-display {
         padding: 1rem;
         background-color: #f8f9fa;
-        border-left: 4px solid #1e88e5; /* --primary-color */
+        border-left: 4px solid #1e88e5;
         font-family: monospace;
-        font-size: 1.1rem; /* Adjusted for st.code consistency */
+        font-size: 1.1rem;
         word-break: break-all;
         margin-bottom: 0.5rem;
-    }
-    .multi-command-display {
-        padding: 1rem;
-        background-color: #f5f5f5;
-        border-left: 4px solid #43a047; /* Green highlight for batch commands */
-        font-family: monospace;
-        font-size: 1rem;
-        word-break: break-all;
-        margin-bottom: 0.5rem;
-    }
-    /* Styling for CSV generator */
-    .csv-preview {
-        background-color: #f8f9fa;
-        border: 1px solid #dee2e6;
-        border-radius: 0.375rem;
-        padding: 1rem;
-        font-family: monospace;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- Initialize Session State ---
+
+# --- Initialize Session State (if not already done) ---
 if 'command_history' not in st.session_state:
     st.session_state.command_history = []
 
-# --- Page Navigation ---
-st.sidebar.title("Navigation")
-page = st.sidebar.radio(
-    "Sélectionner une page:", 
-    ["Individual diagnostic", "Mass diagnostic", "Firmware Update", "iSee Hierachy"]
-)
+# --- Main Homepage Content ---
+# This is what users will see when they first land on your app.
+st.title("Bienvenue sur l'Outil de Diagnostic Réseau")
+st.markdown("---")
+st.header("Comment utiliser cette application :")
+st.info("👈 **Veuillez sélectionner un outil dans le menu de navigation** qui est apparu dans la barre latérale pour commencer.")
 
-# --- Sidebar History Section ---
-st.sidebar.title("⚙️ Actions & historic")
+st.markdown("""
+Cette application fournit plusieurs modules pour vous aider à diagnostiquer les problèmes de réseau et à gérer les appareils.
 
-# --- Display Selected Page ---
-if page == "Individual diagnostic":
-    import individual_diagnostic
-    individual_diagnostic.show()
-elif page == "Mass diagnostic":
-    import batch_diagnostic
-    batch_diagnostic.show()
-elif page == "Firmware Update":
-    import csv_firmware
-    csv_firmware.show()
-elif page == "iSee Hierachy":
-    import isee_interface
-    isee_interface.show()
+### Outils Disponibles:
+- **Individual diagnostic:** Pour lancer des commandes sur un seul appareil.
+- **Mass diagnostic:** Pour exécuter des commandes sur une liste d'appareils.
+- **Firmware Update:** Pour générer des fichiers de mise à jour.
+- **iSee Hierarchy:** Pour explorer et télécharger la hiérarchie des appareils.
+""")
 
-# --- History Display ---
-with st.sidebar.expander("📜 Command history", expanded=False):
+
+# --- Global Sidebar Elements ---
+# Everything in the sidebar here will appear on ALL pages.
+st.sidebar.title("⚙️ Actions & Historique")
+
+# History Display in the sidebar
+with st.sidebar.expander("📜 Historique des commandes", expanded=False):
     if not st.session_state.command_history:
-        st.write("Historic is empty.")
+        st.write("L'historique est vide.")
     else:
-        for j, hist_cmd in enumerate(st.session_state.command_history):
+        # Display history in reverse for recent commands first
+        for j, hist_cmd in enumerate(reversed(st.session_state.command_history)):
             st.code(hist_cmd, language='bash')
-            if st.button("Renvoyer cette commande", key=f"hist_copy_{j}", help="Cliquez pour copier de nouveau (utilise le bouton de copie du bloc de code)."):
-                 # No action needed other than user clicking st.code's copy button.
-                 # Potentially re-add to top of history if desired.
-                 st.info("Utilisez l'icône de copie sur le bloc de code ci-dessus.")
-            st.caption(f"Commande {j+1}")
+            st.caption(f"Commande {len(st.session_state.command_history) - j}")
             st.markdown("---")
 
     if st.session_state.command_history:
-        if st.button("Delete history", key="clear_history"):
+        if st.button("Effacer l'historique", key="clear_history"):
             st.session_state.command_history = []
             st.rerun()
 
         # Download history functionality
-        import json
         history_json = json.dumps(st.session_state.command_history, indent=2)
         st.download_button(
-            label="Download history (JSON)",
+            label="Télécharger l'historique (JSON)",
             data=history_json,
             file_name="command_history.json",
             mime="application/json",
             key="download_history"
         )
 
-# --- CSV History in Sidebar (if applicable) ---
-if page == "Generate CSV" and 'csv_history' in st.session_state and st.session_state.csv_history:
-    with st.sidebar.expander("📄 History CSV", expanded=False):
-        st.write(f"{len(st.session_state.csv_history)} file(s) generated")
-        for i, csv_item in enumerate(st.session_state.csv_history[-3:]):  # Show last 3
-            st.caption(f"📄 {csv_item['filename']} ({csv_item['urls_count']} URLs)")
-
 st.sidebar.markdown("---")
-st.sidebar.info("This app is for designed for remote diagnostic.")
+st.sidebar.info("Application pour le diagnostic à distance.")
+# If you have a logout button function, you can call it here
+# add_logout_button()
+

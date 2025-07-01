@@ -3,6 +3,8 @@ import pandas as pd
 import io
 import json
 import os
+from src.auth import secure_page
+
 
 # --- Lookup Table for Gateway SN to MAC Address ---
 # In a real application, this would be loaded from a database or file
@@ -102,14 +104,16 @@ def initialize_lookup_table():
         st.info(f"💡 Conseil: Placez votre fichier CSV dans: `{os.path.abspath(DEFAULT_LOOKUP_FILE)}`")
         return parse_lookup_csv(DEFAULT_LOOKUP_DATA)
 
-def show():
+@secure_page
+def render_batch_diagnostic():
+
     st.title("Diagnostic par Lots")
     st.markdown("Générez des commandes pour plusieurs gateways à la fois.")
-    
+
     # Initialize session state for lookup table if not exists
     if 'lookup_table' not in st.session_state:
         st.session_state.lookup_table = initialize_lookup_table()
-    
+
     # Add a button to reload from file
     if st.button("🔄 Recharger la table depuis le fichier"):
         file_lookup = load_lookup_from_file(DEFAULT_LOOKUP_FILE)
@@ -118,10 +122,10 @@ def show():
             st.success("Table de correspondance rechargée depuis le fichier!")
         else:
             st.warning("Impossible de recharger depuis le fichier, utilisation de la table actuelle")
-    
+
     # --- Tabs for different input methods ---
     input_tab, lookup_tab = st.tabs(["Entrée des Gateways", "Table de Correspondance"])
-    
+
     # --- Input Tab ---
     with input_tab:
         col1, col2 = st.columns([1, 1])
@@ -227,7 +231,7 @@ def show():
                     st.table(data)
             else:
                 st.info("Aucune commande n'a été générée. Vérifiez la table de correspondance.")
-    
+
     # --- Lookup Table Tab ---
     with lookup_tab:
         st.subheader("Table de Correspondance Serial Number → MAC Address")
@@ -326,3 +330,5 @@ def show():
                     st.success(f"Table sauvegardée dans {DEFAULT_LOOKUP_FILE}")
                 except Exception as e:
                     st.error(f"Erreur lors de la sauvegarde: {str(e)}")
+
+render_batch_diagnostic()

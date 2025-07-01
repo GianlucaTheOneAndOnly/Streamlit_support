@@ -1,22 +1,27 @@
 import streamlit as st
 import pandas as pd
 from io import StringIO
+from src.auth import secure_page
 
-def show():
+
+
+@secure_page
+def render_firmware_update():
+
     """Generate CSV file for firmwares updates"""
-    
+
     st.title("🗂️ Firmware update CSV file")
     st.markdown("---")
-    
+
     st.markdown("""
     This tool allows you to generate a CSV file with the proper formatting.
     - **Colonne 1** : I-see URL ID (one each line)
     - **Colonne 4** : Firmware version
     - **Colonnes 2 et 3** : empty
     """)
-    
+
     col1, col2 = st.columns([2, 1])
-    
+
     with col1:
         st.subheader("📝 I-see URL ID list")
         input_data = st.text_area(
@@ -25,7 +30,7 @@ def show():
             placeholder="Exemple:\n640835b17df06ddd1123b5f8\n640835b17df06ddd1123b5f9",
             help="Add only one url per line"
         )
-    
+
     with col2:
         st.subheader("⚙️ Configuration")
         command_options = [
@@ -52,7 +57,7 @@ def show():
         with st.expander("Advanced options"):
             remove_empty_lines = st.checkbox("Remove empty lines", value=True)
             filename = st.text_input("File name:", value="gw_firm.csv")
-    
+
     if input_data:
         id_list = input_data.strip().split('\n')
         
@@ -117,16 +122,16 @@ def show():
                     mime="text/csv",
                     use_container_width=True
                 )
-    
+
     else:
         st.info("👆 Please enter at least one I-see URL ID to generate CSV.")
-    
+
     st.markdown("---")
     st.subheader("📜 Files generation history")
-    
+
     if 'csv_history' not in st.session_state:
         st.session_state.csv_history = []
-    
+
     if not st.session_state.csv_history:
         st.write("No file generated yet.")
     else:
@@ -147,8 +152,10 @@ def show():
                         mime="text/csv",
                         key=f"redownload_{i}"
                     )
-    
+
     if st.session_state.csv_history:
         if st.button("🗑️ Delete CSV history"):
             st.session_state.csv_history = []
             st.rerun()
+
+render_firmware_update()
