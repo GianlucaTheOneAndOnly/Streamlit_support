@@ -20,7 +20,7 @@ TEST001,00:00:11:22:33:44
 
 # Default file path for lookup table (modify this path as needed)
 # You can use an absolute path like: "C:/Users/gianluca.carbone_ica/Desktop/streamlite/gateway_lookup.csv"
-DEFAULT_LOOKUP_FILE = "gateway_lookup.csv"
+DEFAULT_LOOKUP_FILE = "data/gateway_lookup.csv"
 
 # --- Helper Functions ---
 def add_to_history(command_text):
