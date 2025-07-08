@@ -45,17 +45,77 @@ commands_data = [
         "description": "Set the gateway to install mode for 8 hours"
     },
     {
-        "text": "sudo salt reset UID", "type": "all", "category": "BLUE_SEED",
-        "description": "Reset the salt service (use with UID)"
+        "text": "sudo salt UID cmd.run 'reboot'", "type": "OLD", "category": "OLD GEN",
+        "description": "Reset the gateway (use with UID)"
+    },
+    {
+        "text": "sudo salt-key", "type": "OLD", "category": "OLD GEN",
+        "description": "Return the list of all active gateways"
+    },
+    {
+        "text": "sudo salt UID test.ping", "type": "OLD", "category": "OLD GEN",
+        "description": "Ping the gateway"
+    },
+    {
+        "text": "sudo salt UID cmd.run 'dh-h", "type": "OLD", "category": "OLD GEN",
+        "description": "Check available memory"
+    },
+    {
+        "text": "sudo salt UID cmd.run 'cat/etc/wicare.ini'", "type": "OLD", "category": "OLD GEN",
+        "description": "Check wicare.ini"
+    },
+    {
+        "text": "sudo salt UID cmd.run 'date'", "type": "OLD", "category": "OLD GEN",
+        "description": "Set current date"
+    },
+    {
+        "text": "sudo salt UID cmd.run 'systemctl status wicare_gateway'", "type": "OLD", "category": "OLD GEN",
+        "description": "Check service status gateway"
+    },
+    {
+        "text": "sudo salt UID cmd.run 'systemctl status wicare_coordinator'", "type": "OLD", "category": "OLD GEN",
+        "description": "Check service status coordinator"
+    },
+    {
+        "text": "sudo salt UID cmd.run ' ' journalctl -u wicare_coordinator --since=\"2 minute ago\" '", "type": "OLD", "category": "OLD GEN",
+        "description": "Check coordinator log in a given time interval"
+    },
+    {
+        "text": "sudo salt UID cmd.run ' journalctl -u wicare_coordinator --since \"AAAA-MM-JJ hh:mm\" -- until \"AAAA-MM-JJ hh:mm\" '", "type": "OLD", "category": "OLD GEN",
+        "description": "Check coordinator log in a given time interval"
+    },
+    {
+        "text": "sudo salt UID cmd.run \"/opt/wicare_gateway --version\"", "type": "OLD", "category": "Advantech",
+        "description": "Check gateway firmware version"
+    },
+    {
+        "text": "sudo salt UID state.sls update_advantech saltenv=prod", "type": "OLD", "category": "Advantech",
+        "description": "Push new firmware version"
+    },
+    {
+        "text": "sudo salt UID cmd.run 'cat /usr/local/lib/python*/site-packages/gatewayversion.py'", "type": "OLD", "category": "BLUE_SEED",
+        "description": "Check gateway version"
+    },
+    {
+        "text": "sudo salt UID  cmd.run 'rauc install ", "type": "OLD", "category": "BLUE_SEED",
+        "description": "Push new firmware (if current is older than 2.1.4.0)"
+    },
+    {
+        "text": "sudo salt -t 3600 UID  cmd.run 'rauc install ", "type": "OLD", "category": "BLUE_SEED",
+        "description": "Push new firmware (if current is equal or newer than 2.1.4.0)"
     }
+
+
+
 ]
 
 # --- Helper Functions ---
 def get_category_name(category_code):
     name_map = {
+        "Advantech": "Specific Advantech",
+        "BLUE_SEED": "Specific BLUE/SEED",
         "G23": "G23",
-        "Advantech": "Advantech",
-        "BLUE_SEED": "BLUE/SEED"
+        "OLD GEN" : "OLD GEN"
     }
     return name_map.get(category_code, category_code)
 
