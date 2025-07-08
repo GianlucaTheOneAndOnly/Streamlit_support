@@ -189,7 +189,7 @@ def render_individual_diag():
                 st.info("No commands match your current filter criteria in this category.")
             else:
                 for idx, command in enumerate(filtered_commands):
-                    expander_title = f"{get_category_name(command['category'])}: {command['description']}"
+                    expander_title = f"{command['description']}"
                     with st.expander(expander_title):
                         st.code(command['processed_text'], language='bash')
                         if st.button("Add to History", key=f"history_{current_tab_category}_{idx}"):
