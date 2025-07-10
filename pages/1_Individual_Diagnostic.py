@@ -97,12 +97,12 @@ commands_data = [
         "description": "Check gateway version"
     },
     {
-        "text": "sudo salt UID  cmd.run 'rauc install ", "type": "OLD", "category": "BLUE_SEED",
-        "description": "Push new firmware (if current is older than 2.1.4.0)"
+        "text": "sudo salt UID  cmd.run 'rauc install https://wicare200.icareweb.com/rauc/casync-ucm-imx8m-mini_2.1.4.3.raucb'", "type": "OLD", "category": "BLUE_SEED",
+        "description": "Push new firmware (if current is older than 2.1.4.0). Don't forget to reboot !"
     },
     {
-        "text": "sudo salt -t 3600 UID  cmd.run 'rauc install ", "type": "OLD", "category": "BLUE_SEED",
-        "description": "Push new firmware (if current is equal or newer than 2.1.4.0)"
+        "text": "sudo salt -t 3600 UID  cmd.run 'rauc install https://wicare200.icareweb.com/rauc/casync-ucm-imx8m-mini_2.2.1.2.raucb'", "type": "OLD", "category": "BLUE_SEED",
+        "description": "Push new firmware (if current is equal or newer than 2.1.4.0) Don't forget to reboot !"
     }
 
 
