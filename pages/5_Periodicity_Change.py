@@ -4,8 +4,7 @@ import io
 from datetime import datetime, timedelta
 from src.auth import secure_page  # Import your decorator
 
-# --- Helper Functions ---
-
+# Helper function to prevent conversion errors
 def safe_to_int(value):
     """Safely converts a value to an integer, handling NaN and other errors."""
     if pd.isna(value):
@@ -18,7 +17,6 @@ def safe_to_int(value):
 def transformer_donnees(hierarchy_data, tasks_data, periodicity_settings, interval_minutes):
     """
     Transforms data based on user settings and returns a DataFrame and debug statistics.
-    (This function remains unchanged as its logic is self-contained)
     """
     debug_stats = {
         "hierarchy_assets": 0, "tasks_processed": 0, "assets_matched": 0,
@@ -37,6 +35,7 @@ def transformer_donnees(hierarchy_data, tasks_data, periodicity_settings, interv
     nouvelle_table = [headers]
     task_assets_seen = set()
 
+    # --- CHANGE 1: Initialize start time and interval ---
     current_dtstart = datetime.now()
     time_interval = timedelta(minutes=interval_minutes)
     
@@ -45,6 +44,8 @@ def transformer_donnees(hierarchy_data, tasks_data, periodicity_settings, interv
         
         try:
             mongo_asset = str(row[indices['asset']])
+            if len(task_assets_seen) < 5:
+                task_assets_seen.add(mongo_asset)
         except (IndexError, KeyError):
             continue
 
@@ -81,7 +82,9 @@ def transformer_donnees(hierarchy_data, tasks_data, periodicity_settings, interv
                 was_row_processed = True
             
             if was_row_processed:
-                dtstart_value = current_dtstart.strftime('%Y-%m-%d %H:%M')
+                # --- CHANGE 2: Generate dtstart value based on current time and interval ---
+                dtstart_value = current_dtstart.strftime('%d/%m/%Y %H:%M')
+                
                 row_data = [
                     mongo_asset,
                     row[indices.get('presid', -1)] if 'presid' in indices else '',
@@ -91,7 +94,9 @@ def transformer_donnees(hierarchy_data, tasks_data, periodicity_settings, interv
                     params0_value, dtstart_value
                 ]
                 nouvelle_table.append(row_data)
-                current_dtstart -= time_interval
+
+                # Increment the time for the next valid row
+                current_dtstart += time_interval
             else:
                 debug_stats["skipped_by_params"] += 1
                 if len(debug_stats["params_examples"]) < 5:
@@ -107,106 +112,107 @@ def transformer_donnees(hierarchy_data, tasks_data, periodicity_settings, interv
         return pd.DataFrame(), debug_stats
 
 # --- Main Page Function with Decorator ---
-
 @secure_page
 def render_csv_processor_page():
-    st.title("⚙️ CSV Task Processor")
-    st.markdown("This tool processes a `Tasks.csv` file against the asset hierarchy loaded from the API.")
+    # --- Streamlit Page UI ---
+    st.set_page_config(page_title="CSV Processor", layout="wide")
+    st.title("⚙️ Outil de Traitement CSV")
 
-    # Initialize session state for this page
-    if 'processed_data' not in st.session_state:
-        st.session_state.processed_data = None
-    
     # --- Main content: Only show if logged in and database is selected ---
-    if st.session_state.get('logged_in') and st.session_state.get('database'):
-        st.info(f"Connected to database: **{st.session_state.database}**")
+    if st.session_state.get('logged_in'):
         st.markdown("---")
 
-        # Check if prerequisite data from page 4 exists in session state
-        if st.session_state.get('df_hierarchy') is None:
-            st.warning("Hierarchy data not found. Please go to the **Download Hierarchy** page and fetch the asset hierarchy first.")
-            st.stop()
+        # Section 1: Periodicity and Interval Settings
+        st.header("1. Définir les Paramètres")
+        col_period, col_interval = st.columns([3, 1])
 
-        # --- Page-Specific UI ---
-        
-        # Section 1: Upload Tasks file
-        st.header("1. Upload Tasks File")
-        tasks_file = st.file_uploader("Upload the Tasks CSV file from MongoDB", type=['csv'])
-        
-        if tasks_file:
-            st.markdown("---")
-            # Section 2: Settings (only show after file upload)
-            st.header("2. Define Processing Parameters")
-            col_period, col_interval = st.columns([3, 1])
-            with col_period:
-                st.subheader("Périodicités de mesure")
-                p1, p2, p3 = st.columns(3)
-                with p1:
-                    velocity_period = st.selectbox("Vélocité", options=['DAILY', 'WEEKLY', 'MONTHLY', 'HOURLY', 'MINUTELY'], index=0, key="v_freq")
-                    velocity_interval = st.number_input("Intervalle Vélocité", min_value=1, value=1, step=1, key="v_int")
-                with p2:
-                    dna_period = st.selectbox("DNA", options=['DAILY', 'WEEKLY', 'MONTHLY', 'HOURLY', 'MINUTELY'], index=1, key="d_freq")
-                    dna_interval = st.number_input("Intervalle DNA", min_value=1, value=1, step=1, key="d_int")
-                with p3:
-                    temp_period = st.selectbox("Température", options=['DAILY', 'WEEKLY', 'MONTHLY', 'HOURLY', 'MINUTELY'], index=2, key="t_freq")
-                    temp_interval = st.number_input("Intervalle Temp.", min_value=1, value=1, step=1, key="t_int")
-            with col_interval:
-                st.subheader("Intervalle Temporel")
-                time_interval_minutes = st.number_input("Intervalle entre tâches (minutes)", min_value=1, value=19, step=1)
-            
-            periodicity_settings = {
-                "velocity": {"freq": velocity_period, "interval": velocity_interval},
-                "dna": {"freq": dna_period, "interval": dna_interval},
-                "temperature": {"freq": temp_period, "interval": temp_interval}
-            }
+        with col_period:
+            st.subheader("Périodicités de mesure")
+            p1, p2, p3 = st.columns(3)
+            with p1:
+                velocity_period = st.selectbox("Vélocité", options=['DAILY', 'WEEKLY', 'MONTHLY', 'HOURLY', 'MINUTELY'], index=0, key="v_freq")
+                velocity_interval = st.number_input("Intervalle Vélocité", min_value=1, value=1, step=1, key="v_int")
+            with p2:
+                dna_period = st.selectbox("DNA", options=['DAILY', 'WEEKLY', 'MONTHLY', 'HOURLY', 'MINUTELY'], index=1, key="d_freq")
+                dna_interval = st.number_input("Intervalle DNA", min_value=1, value=1, step=1, key="d_int")
+            with p3:
+                temp_period = st.selectbox("Température", options=['DAILY', 'WEEKLY', 'MONTHLY', 'HOURLY', 'MINUTELY'], index=2, key="t_freq")
+                temp_interval = st.number_input("Intervalle Temp.", min_value=1, value=1, step=1, key="t_int")
 
-            st.markdown("---")
+        with col_interval:
+            st.subheader("Intervalle Temporel")
+            # --- CHANGE 3: Add UI for time interval ---
+            time_interval_minutes = st.number_input("Intervalle entre tâches (minutes)", min_value=1, value=19, step=1)
 
-            # Section 3: Processing and Diagnostics
+        periodicity_settings = {
+            "velocity": {"freq": velocity_period, "interval": velocity_interval},
+            "dna": {"freq": dna_period, "interval": dna_interval},
+            "temperature": {"freq": temp_period, "interval": temp_interval}
+        }
+
+        st.markdown("---")
+
+        # Section 2: File Uploads
+        st.header("2. Télécharger les fichiers")
+        col1_upload, col2_upload = st.columns(2)
+        with col1_upload:
+            hierarchy_file = st.file_uploader("Choisissez le fichier Hierarchy", type=['csv'])
+            st.info("ℹ️ Ce fichier peut être généré via la page **4_Download_Hierarchy**.")
+        with col2_upload:
+            tasks_file = st.file_uploader("Choisissez le fichier Tasks", type=['csv'])
+            st.info("ℹ️ Ce fichier est obtenu via une exportation depuis la base de données **MongoDB**.")
+
+        # Section 3: Processing and Diagnostics
+        if hierarchy_file is not None and tasks_file is not None:
             st.header("3. Lancer le traitement")
-            if st.button("Process Files", type="primary"):
-                with st.spinner('Processing...'):
-                    # Read the uploaded tasks file and get hierarchy from session state
+            
+            if st.button("Traiter les fichiers", type="primary"):
+                with st.spinner('Traitement en cours...'):
+                    hierarchy_df = pd.read_csv(hierarchy_file)
                     tasks_df = pd.read_csv(tasks_file)
-                    hierarchy_df = st.session_state.df_hierarchy
                     
+                    # Pass the new time interval to the function
                     transformed_df, debug_stats = transformer_donnees(hierarchy_df, tasks_df, periodicity_settings, time_interval_minutes)
 
-                    st.subheader("🔍 Diagnostic Results")
-                    st.info(f"**Unique assets found in `Hierarchy`:** {debug_stats['hierarchy_assets']}")
-                    st.info(f"**Total rows processed from `Tasks`:** {debug_stats['tasks_processed']}")
-                    st.info(f"**Asset matches found:** {debug_stats['assets_matched']}")
-                    st.warning(f"**Rows skipped due to 'rule.until':** {debug_stats['skipped_by_until']}")
-                    st.warning(f"**Rows skipped (unrecognized params):** {debug_stats['skipped_by_params']}")
+                    st.subheader("🔍 Résultats du diagnostic")
+                    st.info(f"**Assets uniques trouvés dans `Hierarchy`:** {debug_stats['hierarchy_assets']}")
+                    st.info(f"**Lignes totales traitées depuis `Tasks`:** {debug_stats['tasks_processed']}")
+                    st.info(f"**Correspondances d'assets trouvées:** {debug_stats['assets_matched']}")
+                    st.warning(f"**Lignes ignorées à cause de 'rule.until':** {debug_stats['skipped_by_until']}")
+                    st.warning(f"**Lignes ignorées (paramètres non reconnus):** {debug_stats['skipped_by_params']}")
                     if debug_stats["params_examples"]:
-                        st.info("Examples of rows with unrecognized parameters:")
+                        st.info("Exemples de lignes avec des paramètres non reconnus :")
                         for example in debug_stats["params_examples"]:
                             st.code(example, language='text')
-                    st.success(f"**Final rows generated:** {debug_stats['final_rows']}")
-                    
-                    if debug_stats['final_rows'] == 0 and debug_stats['assets_matched'] > 0:
-                        st.error("❌ **ISSUE IDENTIFIED:** No rows were generated. Check the 'rows skipped' counters above to understand why.")
-                    
-                    st.session_state.processed_data = transformed_df if not transformed_df.empty else None
-    
-    # Section 4: Download Result (shows if data exists from a previous run)
-    if st.session_state.get('processed_data') is not None and not st.session_state.processed_data.empty:
-        st.markdown("---")
-        st.header("4. Download Result")
-        st.dataframe(st.session_state.processed_data)
-        
-        @st.cache_data
-        def convert_df_to_csv(df):
-            return df.to_csv(index=False, header=False, sep=',').encode('utf-8')
+                    st.success(f"**Lignes finales générées:** {debug_stats['final_rows']}")
 
-        csv_data = convert_df_to_csv(st.session_state.processed_data)
-        
-        st.download_button(
-            label="📥 Download Processed CSV",
-            data=csv_data,
-            file_name='transformed_tasks.csv',
-            mime='text/csv',
-        )
+                    if debug_stats['final_rows'] == 0 and debug_stats['assets_matched'] > 0:
+                         st.error("❌ **PROBLÈME IDENTIFIÉ:** Aucune ligne n'a été générée. Vérifiez les compteurs 'lignes ignorées' ci-dessus pour comprendre pourquoi.")
+
+                    if not transformed_df.empty:
+                        st.session_state.processed_data = transformed_df
+                    else:
+                        st.session_state.processed_data = None
+
+        # Section 4: Download Result
+        if st.session_state.get('processed_data') is not None and not st.session_state.processed_data.empty:
+            st.markdown("---")
+            st.header("4. Télécharger le résultat")
+            st.dataframe(st.session_state.processed_data) # Display with headers in the app
+            
+            @st.cache_data
+            def convert_df_to_csv(df):
+                # --- CHANGE 4: Export without headers ---
+                return df.to_csv(index=False, header=False, sep=',').encode('utf-8')
+
+            csv_data = convert_df_to_csv(st.session_state.processed_data)
+            
+            st.download_button(
+                label="📥 Télécharger le fichier CSV",
+                data=csv_data,
+                file_name='transformed_data.csv',
+                mime='text/csv',
+            )
 
 # --- Call the main function to render the page ---
 render_csv_processor_page()
