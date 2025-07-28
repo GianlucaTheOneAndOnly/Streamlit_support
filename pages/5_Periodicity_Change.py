@@ -33,7 +33,23 @@ def transform_data(hierarchy_data, tasks_data, periodicity_settings, interval_mi
     }
     hierarchy_list = [hierarchy_data.columns.values.tolist()] + hierarchy_data.values.tolist()
     tasks_list = [tasks_data.columns.values.tolist()] + tasks_data.values.tolist()
-    hierarchy_lookup = {str(row[13]): True for row in hierarchy_list[1:] if len(row) > 13 and row[13]}
+
+    # Dynamically find the '_id' column index from the header
+    try:
+        hierarchy_headers = [str(h).strip() for h in hierarchy_list[0]]
+        asset_column_index = hierarchy_headers.index('_id') # <--- Changed to '_id'
+    except ValueError:
+        # Handle case where '_id' column is not found
+        st.error("FATAL: The '_id' column could not be found in the Hierarchy file. Please check the file.")
+        return pd.DataFrame(), debug_stats # Stop processing
+
+    # Use the dynamically found index to build the lookup table
+    hierarchy_lookup = {
+        str(row[asset_column_index]): True
+        for row in hierarchy_list[1:]
+        if len(row) > asset_column_index and row[asset_column_index]
+    }
+
     debug_stats["hierarchy_assets"] = len(hierarchy_lookup)
     debug_stats["hierarchy_examples"] = list(hierarchy_lookup.keys())[:5]
     tasks_headers = [str(header).strip() for header in tasks_list[0]]
