@@ -93,7 +93,7 @@ def transform_data(hierarchy_data, tasks_data, periodicity_settings, interval_mi
                 was_row_processed = True
             
             if was_row_processed:
-                dtstart_value = current_dtstart.strftime('%d/%m/%Y %H:%M')
+                dtstart_value = current_dtstart.strftime('%Y-%m-%d %H:%M')
                 
                 row_data = [
                     mongo_asset,
