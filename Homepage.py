@@ -71,6 +71,13 @@ def display_homepage():
         )
         st.markdown("Generate firmware update files for devices.")
 
+        st.page_link(
+            "pages/5_Periodicity_Change.py",
+            label="### Periodicity Change",
+            icon="⏰"
+        )
+        st.markdown("Change the tasks periodicity.")
+
     with col2:
         st.page_link(
             "pages/2_Batch_Diagnostic.py", # Assuming this is the correct path
