@@ -66,7 +66,11 @@ def transform_data(hierarchy_data, tasks_data, periodicity_settings, interval_mi
 
             params0_value = str(row[indices.get('params[0]', -1)]) if 'params[0]' in indices else ''
             params8_raw = row[indices.get('params[8]', -1)] if 'params[8]' in indices else None
-            params8_value = int(params8_raw) if str(params8_raw).isdigit() else None
+            # After
+            try:
+                params8_value = int(float(params8_raw))
+            except (ValueError, TypeError):
+                params8_value = None
             
             was_row_processed = False
             rule_freq_value = ''
@@ -101,7 +105,7 @@ def transform_data(hierarchy_data, tasks_data, periodicity_settings, interval_mi
                 ]
                 new_table.append(row_data)
 
-                current_dtstart += time_interval
+                current_dtstart -= time_interval
             else:
                 debug_stats["skipped_by_params"] += 1
                 if len(debug_stats["params_examples"]) < 5:
