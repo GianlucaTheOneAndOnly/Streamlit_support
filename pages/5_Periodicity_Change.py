@@ -1,21 +1,19 @@
 import streamlit as st
 import pandas as pd
 import io
+import pytz
 from datetime import datetime, timedelta, time
 from functools import wraps
 
 # --- AUTHENTIFICATION (FONCTION FACTICE) ---
-# Assurez-vous que votre propre logique d'authentification est ici
 def secure_page(func):
     """Un décorateur factice pour représenter une page sécurisée."""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        # Mettez ici votre logique de vérification (ex: if st.session_state.get('authenticated'):)
         return func(*args, **kwargs)
     return wrapper
 
 # --- FONCTIONS UTILITAIRES GLOBALES ---
-
 @st.cache_data
 def convert_df_to_csv(df):
     """Exporte un DataFrame en CSV sans en-têtes, encodé en UTF-8."""
@@ -30,21 +28,21 @@ def safe_to_int(value):
     except (ValueError, TypeError):
         return ''
 
-def transform_data(hierarchy_data, tasks_data, periodicity_settings, interval_minutes, start_time, end_time):
+def transform_data(hierarchy_data, tasks_data, periodicity_settings, interval_minutes, start_time, end_time, source_timezone_str, target_timezone_str):
     """
-    Transforme les données en s'assurant que toutes les acquisitions temporelles
-    sont générées à l'intérieur de la fenêtre horaire spécifiée.
+    Transforme les données en utilisant un fuseau horaire source pour la génération
+    et un fuseau horaire cible pour la sortie.
     """
     debug_stats = {
         "hierarchy_assets": 0, "tasks_processed": 0, "assets_matched": 0,
-        "skipped_by_until": 0,
-        "skipped_by_params": 0,
-        # "skipped_by_time_window" est maintenant inutile
-        "final_rows": 0,
+        "skipped_by_until": 0, "skipped_by_params": 0, "final_rows": 0,
         "hierarchy_examples": [], "task_asset_examples": [], "params_examples": [],
     }
     hierarchy_list = [hierarchy_data.columns.values.tolist()] + hierarchy_data.values.tolist()
     tasks_list = [tasks_data.columns.values.tolist()] + tasks_data.values.tolist()
+
+    source_tz = pytz.timezone(source_timezone_str)
+    target_tz = pytz.timezone(target_timezone_str)
 
     try:
         hierarchy_headers = [str(h).strip() for h in hierarchy_list[0]]
@@ -53,23 +51,17 @@ def transform_data(hierarchy_data, tasks_data, periodicity_settings, interval_mi
         st.error("FATAL: La colonne '_id' est introuvable dans le fichier Hierarchy. Veuillez vérifier le fichier.")
         return pd.DataFrame(), debug_stats
 
-    hierarchy_lookup = {
-        str(row[asset_column_index]): True
-        for row in hierarchy_list[1:]
-        if len(row) > asset_column_index and row[asset_column_index]
-    }
-
+    hierarchy_lookup = { str(row[asset_column_index]): True for row in hierarchy_list[1:] if len(row) > asset_column_index and row[asset_column_index] }
     debug_stats["hierarchy_assets"] = len(hierarchy_lookup)
     debug_stats["hierarchy_examples"] = list(hierarchy_lookup.keys())[:5]
     tasks_headers = [str(header).strip() for header in tasks_list[0]]
     indices = {col: tasks_headers.index(col) for col in tasks_headers if col}
 
-    headers = ['asset', 'presid', 'channel', 'unit', 'time_interval',
-               'fmin', 'fmax', 'task_type', 'time_acquisition']
+    headers = ['asset', 'presid', 'channel', 'unit', 'time_interval', 'fmin', 'fmax', 'task_type', 'time_acquisition']
     new_table = [headers]
     task_assets_seen = set()
 
-    current_dtstart = datetime.now()
+    current_dt_aware = source_tz.localize(datetime.now())
     time_interval_decrement = timedelta(minutes=interval_minutes)
     
     for row in tasks_list[1:]:
@@ -119,30 +111,21 @@ def transform_data(hierarchy_data, tasks_data, periodicity_settings, interval_mi
                 was_row_processed = True
             
             if was_row_processed:
-                # NOUVELLE LOGIQUE : Ajuste l'heure pour qu'elle soit toujours dans la fenêtre
-                current_time = current_dtstart.time()
-
+                current_time = current_dt_aware.time()
                 if current_time > end_time:
-                    # Si on est après la fin de la fenêtre, on se place à la fin de la fenêtre du jour même
-                    current_dtstart = datetime.combine(current_dtstart.date(), end_time)
+                    naive_dt = datetime.combine(current_dt_aware.date(), end_time)
+                    current_dt_aware = source_tz.localize(naive_dt)
                 elif current_time < start_time:
-                    # Si on est avant le début, on se place à la fin de la fenêtre du jour précédent
-                    current_dtstart = datetime.combine(current_dtstart.date() - timedelta(days=1), end_time)
+                    naive_dt = datetime.combine(current_dt_aware.date() - timedelta(days=1), end_time)
+                    current_dt_aware = source_tz.localize(naive_dt)
 
-                # Maintenant, `current_dtstart` est garanti d'être dans la bonne plage horaire
-                time_acquisition_value = current_dtstart.strftime('%Y-%m-%d %H:%M')
-                row_data = [
-                    mongo_asset,
-                    row[indices.get('presid', -1)] if 'presid' in indices else '',
-                    channel_value, unit_value, time_interval_value,
-                    safe_to_int(row[indices.get('statistics.vibration[0].fmin')]),
-                    safe_to_int(row[indices.get('statistics.vibration[0].fmax')]),
-                    task_type_value, time_acquisition_value
-                ]
+                target_dt = current_dt_aware.astimezone(target_tz)
+                time_acquisition_value = target_dt.strftime('%Y-%m-%d %H:%M')
+                
+                row_data = [ mongo_asset, row[indices.get('presid', -1)] if 'presid' in indices else '', channel_value, unit_value, time_interval_value, safe_to_int(row[indices.get('statistics.vibration[0].fmin')]), safe_to_int(row[indices.get('statistics.vibration[0].fmax')]), task_type_value, time_acquisition_value ]
                 new_table.append(row_data)
                 
-                # On décrémente le temps pour la prochaine tâche
-                current_dtstart -= time_interval_decrement
+                current_dt_aware -= time_interval_decrement
             else:
                 debug_stats["skipped_by_params"] += 1
                 if len(debug_stats["params_examples"]) < 5:
@@ -167,8 +150,22 @@ def render_csv_processor_page():
 
     # Section 1: Réglages
     st.header("1. Define Settings")
-    col_period, col_interval = st.columns([3, 1])
 
+    # --- Timezone Selectors ---
+    st.subheader("🌍 Timezone Settings")
+    timezones = [
+        "Europe/Brussels", "UTC", "Europe/London", "America/New_York", 
+        "America/Chicago", "America/Denver", "America/Los_Angeles", "Asia/Tokyo", "Asia/Dubai", "Asia/Kolkata", "Australia/Sydney"
+    ]
+    tz_col1, tz_col2 = st.columns(2)
+    with tz_col1:
+        source_timezone = st.selectbox("My Timezone (Source)", options=timezones, index=0, help="Le fuseau horaire de votre emplacement actuel. Utilisé pour interpréter `maintenant`.")
+    with tz_col2:
+        target_timezone = st.selectbox("Target Timezone (Output)", options=timezones, index=0, help="Le fuseau horaire final pour la colonne `time_acquisition`.")
+    
+    st.markdown("---")
+    
+    col_period, col_interval = st.columns([3, 1])
     with col_period:
         st.subheader("Measurement Frequencies")
         p1, p2, p3 = st.columns(3)
@@ -193,11 +190,7 @@ def render_csv_processor_page():
     if (end_time.hour - start_time.hour) < 23:
         st.info("ℹ️ **Recommandation :** Puisque vous utilisez une fenêtre de temps restreinte, il est recommandé de régler la fréquence des mesures sur 'DAILY' (ou un intervalle de 24 heures).")
 
-    periodicity_settings = {
-        "velocity": {"freq": velocity_period, "interval": velocity_interval},
-        "dna": {"freq": dna_period, "interval": dna_interval},
-        "temperature": {"freq": temp_period, "interval": temp_interval}
-    }
+    periodicity_settings = { "velocity": {"freq": velocity_period, "interval": velocity_interval}, "dna": {"freq": dna_period, "interval": dna_interval}, "temperature": {"freq": temp_period, "interval": temp_interval} }
 
     st.markdown("---")
 
@@ -220,10 +213,7 @@ def render_csv_processor_page():
                 hierarchy_df = pd.read_csv(hierarchy_file)
                 tasks_df = pd.read_csv(tasks_file)
                 
-                transformed_df, debug_stats = transform_data(
-                    hierarchy_df, tasks_df, periodicity_settings, time_interval_minutes,
-                    start_time, end_time
-                )
+                transformed_df, debug_stats = transform_data( hierarchy_df, tasks_df, periodicity_settings, time_interval_minutes, start_time, end_time, source_timezone, target_timezone )
 
                 st.subheader("🔍 Diagnostic Results")
                 st.info(f"**Unique assets found in `Hierarchy`:** {debug_stats['hierarchy_assets']}")
@@ -231,7 +221,7 @@ def render_csv_processor_page():
                 st.info(f"**Asset matches found:** {debug_stats['assets_matched']}")
                 st.warning(f"**Rows skipped due to 'rule.until':** {debug_stats['skipped_by_until']}")
                 st.warning(f"**Rows skipped (unrecognized parameters):** {debug_stats['skipped_by_params']}")
-                # La statistique pour la fenêtre de temps a été retirée
+                
                 if debug_stats["params_examples"]:
                     st.info("Examples of rows with unrecognized parameters:")
                     for example in debug_stats["params_examples"]:
@@ -251,12 +241,7 @@ def render_csv_processor_page():
         
         csv_data = convert_df_to_csv(st.session_state.processed_data)
         
-        st.download_button(
-            label="📥 Download CSV file",
-            data=csv_data,
-            file_name='tasks.csv',
-            mime='text/csv',
-        )
+        st.download_button( label="📥 Download CSV file", data=csv_data, file_name='tasks.csv', mime='text/csv', )
 
 # --- APPEL POUR AFFICHER LA PAGE ---
 render_csv_processor_page()
