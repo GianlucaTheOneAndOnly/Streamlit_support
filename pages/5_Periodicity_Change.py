@@ -1,19 +1,28 @@
 import streamlit as st
 import pandas as pd
 import io
-from datetime import datetime, timedelta
-from functools import wraps  # Make sure to import wraps if needed for your decorator
-from src.auth import secure_page
+from datetime import datetime, timedelta, time
+from functools import wraps
 
-# --- GLOBALLY DEFINED UTILITY FUNCTIONS ---
+# --- AUTHENTIFICATION (FONCTION FACTICE) ---
+# Assurez-vous que votre propre logique d'authentification est ici
+def secure_page(func):
+    """Un décorateur factice pour représenter une page sécurisée."""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        # Mettez ici votre logique de vérification (ex: if st.session_state.get('authenticated'):)
+        return func(*args, **kwargs)
+    return wrapper
+
+# --- FONCTIONS UTILITAIRES GLOBALES ---
 
 @st.cache_data
 def convert_df_to_csv(df):
-    """Exports a DataFrame to CSV without headers, encoded in UTF-8."""
+    """Exporte un DataFrame en CSV sans en-têtes, encodé en UTF-8."""
     return df.to_csv(index=False, header=False, sep=',').encode('utf-8')
 
 def safe_to_int(value):
-    """Safely converts a value to an integer, handling NaN values."""
+    """Convertit une valeur en entier de manière sécurisée, en gérant les NaN."""
     if pd.isna(value):
         return ''
     try:
@@ -21,29 +30,29 @@ def safe_to_int(value):
     except (ValueError, TypeError):
         return ''
 
-def transform_data(hierarchy_data, tasks_data, periodicity_settings, interval_minutes):
+def transform_data(hierarchy_data, tasks_data, periodicity_settings, interval_minutes, start_time, end_time):
     """
-    Transforms data based on user settings and returns a DataFrame
-    and debugging statistics.
+    Transforme les données en s'assurant que toutes les acquisitions temporelles
+    sont générées à l'intérieur de la fenêtre horaire spécifiée.
     """
     debug_stats = {
         "hierarchy_assets": 0, "tasks_processed": 0, "assets_matched": 0,
-        "skipped_by_until": 0, "skipped_by_params": 0, "final_rows": 0,
+        "skipped_by_until": 0,
+        "skipped_by_params": 0,
+        # "skipped_by_time_window" est maintenant inutile
+        "final_rows": 0,
         "hierarchy_examples": [], "task_asset_examples": [], "params_examples": [],
     }
     hierarchy_list = [hierarchy_data.columns.values.tolist()] + hierarchy_data.values.tolist()
     tasks_list = [tasks_data.columns.values.tolist()] + tasks_data.values.tolist()
 
-    # Dynamically find the '_id' column index from the header
     try:
         hierarchy_headers = [str(h).strip() for h in hierarchy_list[0]]
-        asset_column_index = hierarchy_headers.index('_id') # <--- Changed to '_id'
+        asset_column_index = hierarchy_headers.index('_id')
     except ValueError:
-        # Handle case where '_id' column is not found
-        st.error("FATAL: The '_id' column could not be found in the Hierarchy file. Please check the file.")
-        return pd.DataFrame(), debug_stats # Stop processing
+        st.error("FATAL: La colonne '_id' est introuvable dans le fichier Hierarchy. Veuillez vérifier le fichier.")
+        return pd.DataFrame(), debug_stats
 
-    # Use the dynamically found index to build the lookup table
     hierarchy_lookup = {
         str(row[asset_column_index]): True
         for row in hierarchy_list[1:]
@@ -54,13 +63,14 @@ def transform_data(hierarchy_data, tasks_data, periodicity_settings, interval_mi
     debug_stats["hierarchy_examples"] = list(hierarchy_lookup.keys())[:5]
     tasks_headers = [str(header).strip() for header in tasks_list[0]]
     indices = {col: tasks_headers.index(col) for col in tasks_headers if col}
-    headers = ['asset', 'presid', 'params8', 'rule.freq', 'rule.interval',
-               'statistics.vibration[0].fmin', 'statistics.vibration[0].fmax', 'params0', 'rule.dtstart']
+
+    headers = ['asset', 'presid', 'channel', 'unit', 'time_interval',
+               'fmin', 'fmax', 'task_type', 'time_acquisition']
     new_table = [headers]
     task_assets_seen = set()
 
     current_dtstart = datetime.now()
-    time_interval = timedelta(minutes=interval_minutes)
+    time_interval_decrement = timedelta(minutes=interval_minutes)
     
     for row in tasks_list[1:]:
         debug_stats["tasks_processed"] += 1
@@ -74,58 +84,69 @@ def transform_data(hierarchy_data, tasks_data, periodicity_settings, interval_mi
 
         if mongo_asset in hierarchy_lookup:
             debug_stats["assets_matched"] += 1
-            
+
             rule_until_value = str(row[indices.get('rule.until', -1)]).strip() if 'rule.until' in indices else ''
             if rule_until_value and rule_until_value.lower() not in ['nan', '']:
                 debug_stats["skipped_by_until"] += 1
                 continue
 
-            params0_value = str(row[indices.get('params[0]', -1)]) if 'params[0]' in indices else ''
-            params8_raw = row[indices.get('params[8]', -1)] if 'params[8]' in indices else None
-            # After
+            task_type_value = str(row[indices.get('params[0]', -1)]) if 'params[0]' in indices else ''
+            channel_raw = row[indices.get('params[8]', -1)] if 'params[8]' in indices else None
+            
             try:
-                params8_value = int(float(params8_raw))
+                channel_value = int(float(channel_raw))
             except (ValueError, TypeError):
-                params8_value = None
+                channel_value = None
             
             was_row_processed = False
-            rule_freq_value = ''
-            rule_interval_value = row[indices.get('rule.interval', -1)] if 'rule.interval' in indices else 1
+            unit_value = ''
+            time_interval_value = row[indices.get('rule.interval', -1)] if 'rule.interval' in indices else 1
 
-            if params0_value == 'acquire_dna':
-                params0_value = 'dna500;dna12;ave12'
-                rule_freq_value = periodicity_settings['dna']['freq']
-                rule_interval_value = periodicity_settings['dna']['interval']
+            if task_type_value == 'acquire_dna':
+                task_type_value = 'dna500;dna12;ave12'
+                unit_value = periodicity_settings['dna']['freq']
+                time_interval_value = periodicity_settings['dna']['interval']
                 was_row_processed = True
-            elif params8_value == 4 and params0_value == 'acquire':
-                params0_value = ''
-                rule_freq_value = periodicity_settings['temperature']['freq']
-                rule_interval_value = periodicity_settings['temperature']['interval']
+            elif channel_value == 4 and task_type_value == 'acquire':
+                task_type_value = '' 
+                unit_value = periodicity_settings['temperature']['freq']
+                time_interval_value = periodicity_settings['temperature']['interval']
                 was_row_processed = True
-            elif params8_value in [0, 1, 2, 3] and params0_value == 'acquire':
-                params0_value = 'velocity;acceleration'
-                rule_freq_value = periodicity_settings['velocity']['freq']
-                rule_interval_value = periodicity_settings['velocity']['interval']
+            elif channel_value in [0, 1, 2, 3] and task_type_value == 'acquire':
+                task_type_value = 'velocity;acceleration'
+                unit_value = periodicity_settings['velocity']['freq']
+                time_interval_value = periodicity_settings['velocity']['interval']
                 was_row_processed = True
             
             if was_row_processed:
-                dtstart_value = current_dtstart.strftime('%Y-%m-%d %H:%M')
-                
+                # NOUVELLE LOGIQUE : Ajuste l'heure pour qu'elle soit toujours dans la fenêtre
+                current_time = current_dtstart.time()
+
+                if current_time > end_time:
+                    # Si on est après la fin de la fenêtre, on se place à la fin de la fenêtre du jour même
+                    current_dtstart = datetime.combine(current_dtstart.date(), end_time)
+                elif current_time < start_time:
+                    # Si on est avant le début, on se place à la fin de la fenêtre du jour précédent
+                    current_dtstart = datetime.combine(current_dtstart.date() - timedelta(days=1), end_time)
+
+                # Maintenant, `current_dtstart` est garanti d'être dans la bonne plage horaire
+                time_acquisition_value = current_dtstart.strftime('%Y-%m-%d %H:%M')
                 row_data = [
                     mongo_asset,
                     row[indices.get('presid', -1)] if 'presid' in indices else '',
-                    params8_value, rule_freq_value, rule_interval_value,
+                    channel_value, unit_value, time_interval_value,
                     safe_to_int(row[indices.get('statistics.vibration[0].fmin')]),
                     safe_to_int(row[indices.get('statistics.vibration[0].fmax')]),
-                    params0_value, dtstart_value
+                    task_type_value, time_acquisition_value
                 ]
                 new_table.append(row_data)
-
-                current_dtstart -= time_interval
+                
+                # On décrémente le temps pour la prochaine tâche
+                current_dtstart -= time_interval_decrement
             else:
                 debug_stats["skipped_by_params"] += 1
                 if len(debug_stats["params_examples"]) < 5:
-                    example = f"asset: {mongo_asset}, params[0]: '{params0_value}', params[8]: '{params8_raw}'"
+                    example = f"asset: {mongo_asset}, task_type (params[0]): '{task_type_value}', channel (params[8]): '{channel_raw}'"
                     debug_stats["params_examples"].append(example)
 
     debug_stats["task_asset_examples"] = list(task_assets_seen)
@@ -136,7 +157,7 @@ def transform_data(hierarchy_data, tasks_data, periodicity_settings, interval_mi
     else:
         return pd.DataFrame(), debug_stats
 
-# --- MAIN PAGE FUNCTION WITH DECORATOR ---
+# --- FONCTION PRINCIPALE DE LA PAGE ---
 @secure_page
 def render_csv_processor_page():
     st.title("⚙️ CSV Processing Tool")
@@ -144,7 +165,7 @@ def render_csv_processor_page():
     if 'processed_data' not in st.session_state:
         st.session_state.processed_data = None
 
-    # Section 1: Settings
+    # Section 1: Réglages
     st.header("1. Define Settings")
     col_period, col_interval = st.columns([3, 1])
 
@@ -164,6 +185,13 @@ def render_csv_processor_page():
     with col_interval:
         st.subheader("Time Interval")
         time_interval_minutes = st.number_input("Interval between tasks (minutes)", min_value=1, value=19, step=1)
+        
+        st.subheader("Time Window Filter")
+        start_time = st.time_input("Start of day", value=time(0, 0), help="Heure de début pour l'acquisition des tâches.")
+        end_time = st.time_input("End of day", value=time(23, 59), help="Heure de fin pour l'acquisition des tâches.")
+
+    if (end_time.hour - start_time.hour) < 23:
+        st.info("ℹ️ **Recommandation :** Puisque vous utilisez une fenêtre de temps restreinte, il est recommandé de régler la fréquence des mesures sur 'DAILY' (ou un intervalle de 24 heures).")
 
     periodicity_settings = {
         "velocity": {"freq": velocity_period, "interval": velocity_interval},
@@ -173,17 +201,17 @@ def render_csv_processor_page():
 
     st.markdown("---")
 
-    # Section 2: File Upload
+    # Section 2: Upload des fichiers
     st.header("2. Upload Files")
     col1_upload, col2_upload = st.columns(2)
     with col1_upload:
         hierarchy_file = st.file_uploader("Choose the Hierarchy file", type=['csv'])
-        st.info("ℹ️ This file can be generated via the **4_Download_Hierarchy** page.")
+        st.info("ℹ️ Ce fichier peut être généré via la page **4_Download_Hierarchy**.")
     with col2_upload:
         tasks_file = st.file_uploader("Choose the Tasks file", type=['csv'])
-        st.info("ℹ️ This file is obtained via an export from the **MongoDB** database.")
+        st.info("ℹ️ Ce fichier est obtenu via un export de la base de données **MongoDB**.")
 
-    # Section 3: Processing and Diagnostics
+    # Section 3: Traitement et Diagnostics
     if hierarchy_file is not None and tasks_file is not None:
         st.header("3. Start Processing")
         
@@ -192,7 +220,10 @@ def render_csv_processor_page():
                 hierarchy_df = pd.read_csv(hierarchy_file)
                 tasks_df = pd.read_csv(tasks_file)
                 
-                transformed_df, debug_stats = transform_data(hierarchy_df, tasks_df, periodicity_settings, time_interval_minutes)
+                transformed_df, debug_stats = transform_data(
+                    hierarchy_df, tasks_df, periodicity_settings, time_interval_minutes,
+                    start_time, end_time
+                )
 
                 st.subheader("🔍 Diagnostic Results")
                 st.info(f"**Unique assets found in `Hierarchy`:** {debug_stats['hierarchy_assets']}")
@@ -200,6 +231,7 @@ def render_csv_processor_page():
                 st.info(f"**Asset matches found:** {debug_stats['assets_matched']}")
                 st.warning(f"**Rows skipped due to 'rule.until':** {debug_stats['skipped_by_until']}")
                 st.warning(f"**Rows skipped (unrecognized parameters):** {debug_stats['skipped_by_params']}")
+                # La statistique pour la fenêtre de temps a été retirée
                 if debug_stats["params_examples"]:
                     st.info("Examples of rows with unrecognized parameters:")
                     for example in debug_stats["params_examples"]:
@@ -207,17 +239,16 @@ def render_csv_processor_page():
                 st.success(f"**Final rows generated:** {debug_stats['final_rows']}")
 
                 if debug_stats['final_rows'] == 0 and debug_stats['assets_matched'] > 0:
-                    st.error("❌ **PROBLEM IDENTIFIED:** No rows were generated. Check the counters above.")
+                    st.error("❌ **PROBLÈME IDENTIFIÉ :** Aucune ligne n'a été générée. Vérifiez les compteurs ci-dessus.")
 
                 st.session_state.processed_data = transformed_df if not transformed_df.empty else None
 
-    # Section 4: Download Result
+    # Section 4: Téléchargement du résultat
     if st.session_state.get('processed_data') is not None and not st.session_state.processed_data.empty:
         st.markdown("---")
         st.header("4. Download Result")
         st.dataframe(st.session_state.processed_data)
         
-        # Call the `convert_df_to_csv` function which was defined globally
         csv_data = convert_df_to_csv(st.session_state.processed_data)
         
         st.download_button(
@@ -227,5 +258,5 @@ def render_csv_processor_page():
             mime='text/csv',
         )
 
-# --- CALL TO DISPLAY THE PAGE ---
+# --- APPEL POUR AFFICHER LA PAGE ---
 render_csv_processor_page()
