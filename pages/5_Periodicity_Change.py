@@ -172,7 +172,7 @@ def render_csv_processor_page():
     # --- Timezone Selectors ---
     st.subheader("🌍 Timezone Settings")
     timezones = [
-        "Europe/Brussels", "UTC", "Europe/London", "America/New_York", 
+        "Europe/Brussels", "UTC", "Europe/London", "America/New_York", "America/Sao_Paulo",
         "America/Chicago", "America/Denver", "America/Los_Angeles", "Asia/Tokyo", "Asia/Dubai", "Asia/Kolkata", "Australia/Sydney"
     ]
     tz_col1, tz_col2 = st.columns(2)
