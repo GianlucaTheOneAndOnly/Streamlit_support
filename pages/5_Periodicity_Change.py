@@ -112,12 +112,29 @@ def transform_data(hierarchy_data, tasks_data, periodicity_settings, interval_mi
             
             if was_row_processed:
                 current_time = current_dt_aware.time()
+                
+                # S'assure que la première heure générée est dans la fenêtre de temps
                 if current_time > end_time:
                     naive_dt = datetime.combine(current_dt_aware.date(), end_time)
                     current_dt_aware = source_tz.localize(naive_dt)
+
+                # --- DÉBUT DE LA CORRECTION ---
                 elif current_time < start_time:
-                    naive_dt = datetime.combine(current_dt_aware.date() - timedelta(days=1), end_time)
-                    current_dt_aware = source_tz.localize(naive_dt)
+                    # Logique pour "enrouler" le temps selon la demande.
+                    # Exemple: T_min=14h, T_max=22h. Si calculé=13h56...
+                    # 1. Créer des objets datetime complets pour la fenêtre de temps du jour
+                    current_date = current_dt_aware.date()
+                    start_dt_today = source_tz.localize(datetime.combine(current_date, start_time))
+                    end_dt_today = source_tz.localize(datetime.combine(current_date, end_time))
+                    
+                    # 2. Calculer le "reste": T_min - temps_calculé
+                    # reste = 14h00 - 13h56 = 4min
+                    remainder = start_dt_today - current_dt_aware
+                    
+                    # 3. Calculer le temps corrigé: T_max - reste
+                    # temps_corrigé = 22h00 - 4min = 21h56
+                    current_dt_aware = end_dt_today - remainder
+                # --- FIN DE LA CORRECTION ---
 
                 target_dt = current_dt_aware.astimezone(target_tz)
                 time_acquisition_value = target_dt.strftime('%Y-%m-%d %H:%M')
@@ -125,6 +142,7 @@ def transform_data(hierarchy_data, tasks_data, periodicity_settings, interval_mi
                 row_data = [ mongo_asset, row[indices.get('presid', -1)] if 'presid' in indices else '', channel_value, unit_value, time_interval_value, safe_to_int(row[indices.get('statistics.vibration[0].fmin')]), safe_to_int(row[indices.get('statistics.vibration[0].fmax')]), task_type_value, time_acquisition_value ]
                 new_table.append(row_data)
                 
+                # Décrémente l'heure pour la prochaine tâche
                 current_dt_aware -= time_interval_decrement
             else:
                 debug_stats["skipped_by_params"] += 1
